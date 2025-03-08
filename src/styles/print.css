@@ -1,0 +1,32 @@
+@media print {
+  .recharts-wrapper {
+    width: 100% !important;
+    height: auto !important;
+  }
+  
+  button {
+    display: none !important;
+  }
+  
+  @page {
+    size: A4;
+    margin: 20mm;
+  }
+  
+  body {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .animate-fade-in {
+    animation: none !important;
+  }
+
+  .space-y-6 {
+    margin-top: 1.5rem !important;
+  }
+
+  .p-6 {
+    padding: 1.5rem !important;
+  }
+}
