@@ -38,6 +38,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import MessageDialog from "@/components/clients/MessageDialog";
+import DebtManagementDialog from "@/components/clients/DebtManagementDialog";
 
 const PAGE_SIZES = [10, 20, 50, 100];
 
@@ -54,7 +55,7 @@ const Clients = () => {
   const [clientToDelete, setClientToDelete] = useState<string | null>(null);
   const [adminPassword, setAdminPassword] = useState("");
   const { toast } = useToast();
-  const [sortField, setSortField] = useState<'name' | 'amount_paid' | 'due_date' | 'status' | null>(null);
+  const [sortField, setSortField] = useState<'name' | 'amount_paid' | 'due_date' | 'status' | 'debt' | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   useEffect(() => {
@@ -68,34 +69,11 @@ const Clients = () => {
 
         if (error) throw error;
 
-        const typedClients = (data || []).map(client => {
-          const dueDate = new Date(client.due_date);
-          const today = new Date();
-          
-          dueDate.setHours(0, 0, 0, 0);
-          today.setHours(0, 0, 0, 0);
-          
-          const daysDifference = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-          
-          if (daysDifference <= 0 && client.status === "Paid") {
-            supabase
-              .from("clients")
-              .update({ status: "Pending" })
-              .eq("id", client.id)
-              .then(({ error: updateError }) => {
-                if (updateError) {
-                  console.error("Error reverting client status:", updateError);
-                } else {
-                  toast({
-                    title: "Status Updated",
-                    description: `${client.name}'s payment status has been reset as the due date has passed`,
-                  });
-                }
-              });
-            return { ...client, status: "Pending" as ClientStatus };
-          }
-          return { ...client, status: client.status as ClientStatus };
-        });
+        const typedClients = (data || []).map(client => ({
+          ...client,
+          status: client.status as ClientStatus,
+          debt: client.debt || 0
+        }));
 
         setClients(typedClients);
         setFilteredClients(typedClients);
@@ -151,6 +129,9 @@ const Clients = () => {
           case 'status':
             comparison = a.status.localeCompare(b.status);
             break;
+          case 'debt':
+            comparison = a.debt - b.debt;
+            break;
         }
 
         return sortDirection === 'asc' ? comparison : -comparison;
@@ -161,7 +142,7 @@ const Clients = () => {
     setCurrentPage(1);
   }, [searchTerm, clients, sortField, sortDirection]);
 
-  const handleSort = (field: 'name' | 'amount_paid' | 'due_date' | 'status') => {
+  const handleSort = (field: 'name' | 'amount_paid' | 'due_date' | 'status' | 'debt') => {
     if (sortField === field) {
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
@@ -170,7 +151,7 @@ const Clients = () => {
     }
   };
 
-  const getSortIcon = (field: 'name' | 'amount_paid' | 'due_date' | 'status') => {
+  const getSortIcon = (field: 'name' | 'amount_paid' | 'due_date' | 'status' | 'debt') => {
     if (sortField !== field) return null;
     return sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />;
   };
@@ -179,7 +160,6 @@ const Clients = () => {
     try {
       let newStatus: ClientStatus;
       let updates: any = {};
-      const currentDate = new Date();
       const dueDate = new Date(currentDueDate);
       
       setPreviousDates(prev => ({
@@ -196,20 +176,35 @@ const Clients = () => {
       } else {
         newStatus = "Paid";
         
-        if (currentStatus === "Suspended") {
-          const nextDueDate = new Date(
-            currentDate.getFullYear(),
-            currentDate.getMonth() + 1,
-            currentDate.getDate()
-          );
-          updates.due_date = nextDueDate.toISOString().split('T')[0];
-        } else {
-          const nextDueDate = new Date(
-            dueDate.getFullYear(),
-            dueDate.getMonth() + 1,
-            dueDate.getDate()
-          );
-          updates.due_date = nextDueDate.toISOString().split('T')[0];
+        const nextDueDate = new Date(dueDate);
+        const currentDay = dueDate.getDate();
+        
+        nextDueDate.setMonth(nextDueDate.getMonth() + 1);
+        
+        const nextMonth = nextDueDate.getMonth();
+        nextDueDate.setDate(1);
+        nextDueDate.setMonth(nextMonth);
+        
+        const lastDayOfMonth = new Date(nextDueDate.getFullYear(), nextDueDate.getMonth() + 1, 0).getDate();
+        const targetDay = Math.min(currentDay, lastDayOfMonth);
+        nextDueDate.setDate(targetDay);
+        
+        updates.due_date = nextDueDate.toISOString().split('T')[0];
+        
+        const { data: clientData } = await supabase
+          .from("clients")
+          .select("amount_paid, debt")
+          .eq("id", clientId)
+          .single();
+          
+        if (clientData) {
+          const currentDebt = clientData.debt || 0;
+          if (currentStatus === "Pending" || currentStatus === "Suspended") {
+            const isLate = new Date() > dueDate;
+            if (isLate) {
+              updates.debt = currentDebt + clientData.amount_paid;
+            }
+          }
         }
       }
 
@@ -406,7 +401,7 @@ const Clients = () => {
                     onClick={() => handleSort('name')}
                   >
                     <div className="flex items-center gap-1">
-                      Name {getSortIcon('name')}
+                      👤 Name {getSortIcon('name')}
                     </div>
                   </TableHead>
                   <TableHead 
@@ -414,7 +409,15 @@ const Clients = () => {
                     onClick={() => handleSort('amount_paid')}
                   >
                     <div className="flex items-center gap-1">
-                      Amount {getSortIcon('amount_paid')}
+                      💰 Amount {getSortIcon('amount_paid')}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => handleSort('debt')}
+                  >
+                    <div className="flex items-center gap-1">
+                      🚨 Debt {getSortIcon('debt')}
                     </div>
                   </TableHead>
                   <TableHead 
@@ -422,7 +425,7 @@ const Clients = () => {
                     onClick={() => handleSort('due_date')}
                   >
                     <div className="flex items-center gap-1">
-                      Due Date {getSortIcon('due_date')}
+                      📅 Due Date {getSortIcon('due_date')}
                     </div>
                   </TableHead>
                   <TableHead 
@@ -430,13 +433,13 @@ const Clients = () => {
                     onClick={() => handleSort('status')}
                   >
                     <div className="flex items-center gap-1">
-                      Status {getSortIcon('status')}
+                      ⭐ Status {getSortIcon('status')}
                     </div>
                   </TableHead>
-                  <TableHead>Payment</TableHead>
-                  <TableHead>Is Suspended</TableHead>
-                  <TableHead>Actions</TableHead>
-                  <TableHead>Comm</TableHead>
+                  <TableHead>💳 Payment</TableHead>
+                  <TableHead>⚠️ Is Suspended</TableHead>
+                  <TableHead>⚙️ Actions</TableHead>
+                  <TableHead>💬 Comm</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -451,9 +454,29 @@ const Clients = () => {
                       />
                     </TableCell>
                     <TableCell>{client.name}</TableCell>
-                    <TableCell>KES {client.amount_paid}</TableCell>
+                    <TableCell>KES {client.amount_paid.toLocaleString()}</TableCell>
+                    <TableCell>
+                      {client.debt > 0 ? (
+                        <span className="text-red-500">
+                          KES {client.debt.toLocaleString()}
+                        </span>
+                      ) : (
+                        <span className="text-green-500">No Debt</span>
+                      )}
+                    </TableCell>
                     <TableCell>{formatDate(client.due_date)}</TableCell>
-                    <TableCell>{client.status}</TableCell>
+                    <TableCell>
+                      <span className={
+                        client.status === "Paid" ? "text-green-500" :
+                        client.status === "Suspended" ? "text-red-500" :
+                        "text-yellow-500"
+                      }>
+                        {client.status === "Paid" ? "✅" :
+                         client.status === "Suspended" ? "❌" :
+                         "⏳"}
+                        {" "}{client.status}
+                      </span>
+                    </TableCell>
                     <TableCell>
                       <Switch
                         checked={client.status === "Paid"}
@@ -493,6 +516,14 @@ const Clients = () => {
                             <Pencil className="h-4 w-4" />
                           </Button>
                         </ClientDialog>
+                        <DebtManagementDialog
+                          client={client}
+                          onSuccess={handleRefresh}
+                        >
+                          <Button variant="ghost" size="icon">
+                            💰
+                          </Button>
+                        </DebtManagementDialog>
                         <Button
                           variant="ghost"
                           size="icon"

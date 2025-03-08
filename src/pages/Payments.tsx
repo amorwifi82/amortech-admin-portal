@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,6 +11,7 @@ const Payments = () => {
   const [monthlyCollection, setMonthlyCollection] = useState(0);
   const [totalRevenue, setTotalRevenue] = useState(0);
   const [monthlyProfit, setMonthlyProfit] = useState(0);
+  const [totalDebt, setTotalDebt] = useState(0);
   const [showPaidClients, setShowPaidClients] = useState(false);
   const [paidClients, setPaidClients] = useState<Client[]>([]);
   const [recentPayments, setRecentPayments] = useState<Client[]>([]);
@@ -50,7 +50,8 @@ const Payments = () => {
         // Map and explicitly cast the status to ClientStatus
         setPaidClients(currentMonthPaid?.map(client => ({
           ...client,
-          status: client.status as ClientStatus
+          status: client.status as ClientStatus,
+          debt: client.debt || 0
         })) || []);
 
         // Calculate monthly expenses
@@ -59,16 +60,18 @@ const Payments = () => {
         // Calculate monthly profit (revenue - expenses)
         setMonthlyProfit(monthlyTotal - monthlyExpenses);
 
-        // Fetch all clients to calculate total revenue
+        // Fetch all clients to calculate total revenue and debt
         const { data: allClients, error: totalError } = await supabase
           .from("clients")
           .select("*");
 
         if (totalError) throw totalError;
 
-        // Calculate total revenue (sum of all client amounts)
+        // Calculate total revenue and debt
         const total = allClients?.reduce((sum, client) => sum + (client.amount_paid || 0), 0) || 0;
+        const debt = allClients?.reduce((sum, client) => sum + (client.debt || 0), 0) || 0;
         setTotalRevenue(total);
+        setTotalDebt(debt);
 
         // Fetch recent payments (last 5)
         const { data: recent, error: recentError } = await supabase
@@ -80,10 +83,10 @@ const Payments = () => {
 
         if (recentError) throw recentError;
         
-        // Map and explicitly cast the status to ClientStatus
         setRecentPayments(recent?.map(client => ({
           ...client,
-          status: client.status as ClientStatus
+          status: client.status as ClientStatus,
+          debt: client.debt || 0
         })) || []);
 
       } catch (error) {
@@ -111,12 +114,12 @@ const Payments = () => {
         <ExportButton clients={paidClients} />
       </div>
       
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card className="p-6 hover:shadow-lg transition-all duration-200 cursor-pointer bg-gradient-to-br from-blue-50 to-blue-100" onClick={() => setShowPaidClients(true)}>
           <CardContent className="p-0">
             <div className="flex items-center space-x-4">
               <div className="p-2 bg-blue-500 rounded-lg">
-                <Receipt className="h-6 w-6 text-white" />
+                <span className="text-2xl">💵</span>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Monthly Collection</p>
@@ -131,7 +134,7 @@ const Payments = () => {
           <CardContent className="p-0">
             <div className="flex items-center space-x-4">
               <div className="p-2 bg-green-500 rounded-lg">
-                <TrendingUp className="h-6 w-6 text-white" />
+                <span className="text-2xl">📈</span>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Monthly Profit</p>
@@ -146,12 +149,27 @@ const Payments = () => {
           <CardContent className="p-0">
             <div className="flex items-center space-x-4">
               <div className="p-2 bg-purple-500 rounded-lg">
-                <Wallet className="h-6 w-6 text-white" />
+                <span className="text-2xl">💰</span>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Total Revenue</p>
                 <h3 className="text-2xl font-bold">KES {totalRevenue.toLocaleString()}</h3>
                 <p className="text-sm text-muted-foreground">All time</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="p-6 hover:shadow-lg transition-all duration-200 bg-gradient-to-br from-red-50 to-red-100">
+          <CardContent className="p-0">
+            <div className="flex items-center space-x-4">
+              <div className="p-2 bg-red-500 rounded-lg">
+                <span className="text-2xl">🚨</span>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Total Outstanding Debt</p>
+                <h3 className="text-2xl font-bold">KES {totalDebt.toLocaleString()}</h3>
+                <p className="text-sm text-muted-foreground">All clients</p>
               </div>
             </div>
           </CardContent>
@@ -168,9 +186,16 @@ const Payments = () => {
             >
               <div>
                 <p className="font-medium">{client.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  KES {client.amount_paid.toLocaleString()}
-                </p>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">
+                    Paid: KES {client.amount_paid.toLocaleString()}
+                  </p>
+                  {client.debt > 0 && (
+                    <p className="text-sm text-red-500">
+                      Outstanding: KES {client.debt.toLocaleString()}
+                    </p>
+                  )}
+                </div>
               </div>
               <span className="text-sm text-muted-foreground">
                 {formatDistanceToNow(new Date(client.updated_at), { addSuffix: true })}

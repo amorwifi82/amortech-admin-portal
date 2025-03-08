@@ -5,6 +5,7 @@ export interface Client {
   name: string;
   phone_number: string;
   amount_paid: number;
+  debt: number;
   status: ClientStatus;
   due_date: string;
   created_at: string;
@@ -35,6 +36,7 @@ export function isClient(obj: any): obj is Client {
     typeof obj.name === 'string' &&
     typeof obj.phone_number === 'string' &&
     typeof obj.amount_paid === 'number' &&
+    typeof obj.debt === 'number' &&
     typeof obj.status === 'string' &&
     typeof obj.due_date === 'string';
 }

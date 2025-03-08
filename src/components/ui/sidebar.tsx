@@ -2,6 +2,7 @@ import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { VariantProps, cva } from "class-variance-authority"
 import { PanelLeft } from "lucide-react"
+import { Link, useLocation } from "react-router-dom"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
@@ -174,6 +175,17 @@ const Sidebar = React.forwardRef<
     ref
   ) => {
     const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+    const location = useLocation()
+
+    const menuItems = [
+      { href: "/", label: "Dashboard", emoji: "📊" },
+      { href: "/clients", label: "Clients", emoji: "👥" },
+      { href: "/payments", label: "Payments", emoji: "💳" },
+      { href: "/expenses", label: "Expenses", emoji: "💰" },
+      { href: "/reports", label: "Reports", emoji: "📈" },
+      { href: "/messages", label: "Messages", emoji: "💬" },
+      { href: "/settings", label: "Settings", emoji: "⚙️" },
+    ]
 
     if (collapsible === "none") {
       return (
@@ -204,7 +216,32 @@ const Sidebar = React.forwardRef<
             }
             side={side}
           >
-            <div className="flex h-full w-full flex-col">{children}</div>
+            <div className="flex h-full w-full flex-col">
+              <div className="space-y-4 py-4">
+                <div className="px-3 py-2">
+                  <h2 className="mb-2 px-4 text-2xl font-semibold tracking-tight">
+                    Menu
+                  </h2>
+                  <div className="space-y-1">
+                    {menuItems.map(({ href, label, emoji }) => (
+                      <Link
+                        key={href}
+                        to={href}
+                        className={cn(
+                          "flex items-center gap-3 rounded-lg px-3 py-2 text-lg transition-colors hover:bg-accent hover:text-accent-foreground",
+                          location.pathname === href
+                            ? "bg-accent text-accent-foreground"
+                            : "text-muted-foreground hover:text-primary"
+                        )}
+                      >
+                        <span className="text-xl">{emoji}</span>
+                        <span>{label}</span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
           </SheetContent>
         </Sheet>
       )
@@ -248,7 +285,30 @@ const Sidebar = React.forwardRef<
             data-sidebar="sidebar"
             className="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow"
           >
-            {children}
+            <div className="space-y-4 py-4">
+              <div className="px-3 py-2">
+                <h2 className="mb-2 px-4 text-2xl font-semibold tracking-tight">
+                  Menu
+                </h2>
+                <div className="space-y-1">
+                  {menuItems.map(({ href, label, emoji }) => (
+                    <Link
+                      key={href}
+                      to={href}
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg px-3 py-2 text-lg transition-colors hover:bg-accent hover:text-accent-foreground",
+                        location.pathname === href
+                          ? "bg-accent text-accent-foreground"
+                          : "text-muted-foreground hover:text-primary"
+                      )}
+                    >
+                      <span className="text-xl">{emoji}</span>
+                      <span>{label}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
