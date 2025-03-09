@@ -8,7 +8,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { MessageCircle } from "lucide-react";
 import type { Client } from "@/lib/supabase";
 import { format } from "date-fns";
 
@@ -48,7 +47,7 @@ const MessageDialog = ({ client, children }: MessageDialogProps) => {
       <DialogTrigger asChild>
         {children || (
           <Button variant="ghost" size="sm">
-            <MessageCircle className="h-4 w-4 text-blue-500" />
+            <span className="text-xl text-blue-500">💬</span>
           </Button>
         )}
       </DialogTrigger>

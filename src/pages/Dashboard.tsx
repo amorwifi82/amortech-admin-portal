@@ -2,19 +2,11 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
-import {
-  Users,
-  CreditCard,
-  AlertTriangle,
-  TrendingUp,
-  Menu,
-  X
-} from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Client, ClientStatus } from "@/lib/supabase";
 import { formatDistanceToNow } from "date-fns";
 import StatsDialog from "@/components/dashboard/StatsDialog";
-import { MessageCircle } from "lucide-react";
 import MessageDialog from "@/components/clients/MessageDialog";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -213,7 +205,7 @@ const Dashboard = () => {
     {
       title: "Total Clients",
       value: clientStats.total.toString(),
-      icon: Users,
+      emoji: "👥",
       trend: "Updated in real-time",
       color: "#0891b2",
       bgColor: "bg-cyan-50",
@@ -222,7 +214,7 @@ const Dashboard = () => {
     {
       title: "Monthly Revenue",
       value: `KES ${clientStats.revenue.toLocaleString()}`,
-      icon: CreditCard,
+      emoji: "💵",
       trend: "Total collected",
       color: "#059669",
       bgColor: "bg-emerald-50",
@@ -230,7 +222,7 @@ const Dashboard = () => {
     {
       title: "Overdue Payments",
       value: clientStats.overdue.toString(),
-      icon: AlertTriangle,
+      emoji: "⚠️",
       trend: "Requires attention",
       color: "#dc2626",
       bgColor: "bg-red-50",
@@ -239,7 +231,7 @@ const Dashboard = () => {
     {
       title: "Active Subscriptions",
       value: clientStats.active.toString(),
-      icon: TrendingUp,
+      emoji: "📈",
       trend: "Currently active",
       color: "#7c3aed",
       bgColor: "bg-violet-50",
@@ -281,7 +273,7 @@ const Dashboard = () => {
             onClick={() => stat.type && handleCardClick(stat.type)}
           >
             <div className="flex items-center justify-between mb-4">
-              <stat.icon className="h-8 w-8" color={stat.color} />
+              <span className="text-3xl">{stat.emoji}</span>
               <span className="text-sm text-muted-foreground">{stat.trend}</span>
             </div>
             <h3 className="text-2xl font-bold mb-1">{stat.value}</h3>
