@@ -1,6 +1,5 @@
-
 import React, { useEffect } from "react";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import {
@@ -87,79 +86,63 @@ export const ClientStatusSection = ({ selectedYear }: ClientStatusSectionProps) 
   };
 
   return (
-    <Card className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="text-lg font-semibold">Client Payment Status</h3>
-        <Select defaultValue="all">
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Filter by Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Clients</SelectItem>
-            <SelectItem value="paid">Paid</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="overdue">Overdue</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      
-      <div className="h-[300px] mb-6">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={monthlyStatusData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="name" />
-            <YAxis />
-            <Tooltip />
-            <Legend />
-            <Line 
-              type="monotone" 
-              dataKey="paid" 
-              name="Paid Clients" 
-              stroke="#22c55e"
-              strokeWidth={2}
-            />
-            <Line 
-              type="monotone" 
-              dataKey="pending" 
-              name="Pending Clients" 
-              stroke="#94a3b8"
-              strokeWidth={2}
-            />
-            <Line 
-              type="monotone" 
-              dataKey="overdue" 
-              name="Overdue Clients" 
-              stroke="#ef4444"
-              strokeWidth={2}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+    <div className="grid gap-4 md:grid-cols-4 mb-6">
+      <Card className="bg-gradient-to-br from-purple-50 to-purple-100">
+        <CardContent className="p-6">
+          <div className="flex items-center space-x-4">
+            <div className="p-2 bg-purple-500 rounded-lg">
+              <span className="text-3xl">👥</span>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Total Clients</p>
+              <h3 className="text-2xl font-bold">{clients?.length || 0}</h3>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="space-y-4">
-        <div className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50">
-          <Label htmlFor="paid" className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-green-500"></div>
-            Paid Clients ({currentStatus.paid})
-          </Label>
-          <Switch id="paid" checked={true} disabled />
-        </div>
-        <div className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50">
-          <Label htmlFor="pending" className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-gray-400"></div>
-            Pending Clients ({currentStatus.pending})
-          </Label>
-          <Switch id="pending" checked={true} disabled />
-        </div>
-        <div className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50">
-          <Label htmlFor="overdue" className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-red-500"></div>
-            Overdue Clients ({currentStatus.overdue})
-          </Label>
-          <Switch id="overdue" checked={true} disabled />
-        </div>
-      </div>
-    </Card>
+      <Card className="bg-gradient-to-br from-green-50 to-green-100">
+        <CardContent className="p-6">
+          <div className="flex items-center space-x-4">
+            <div className="p-2 bg-green-500 rounded-lg">
+              <span className="text-3xl">✅</span>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Active Clients</p>
+              <h3 className="text-2xl font-bold">{currentStatus.paid}</h3>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100">
+        <CardContent className="p-6">
+          <div className="flex items-center space-x-4">
+            <div className="p-2 bg-yellow-500 rounded-lg">
+              <span className="text-3xl">⏳</span>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Pending Clients</p>
+              <h3 className="text-2xl font-bold">{currentStatus.pending}</h3>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-gradient-to-br from-red-50 to-red-100">
+        <CardContent className="p-6">
+          <div className="flex items-center space-x-4">
+            <div className="p-2 bg-red-500 rounded-lg">
+              <span className="text-3xl">⚠️</span>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Overdue Clients</p>
+              <h3 className="text-2xl font-bold">{currentStatus.overdue}</h3>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 

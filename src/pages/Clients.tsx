@@ -54,6 +54,11 @@ const Clients = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [clientToDelete, setClientToDelete] = useState<string | null>(null);
   const [adminPassword, setAdminPassword] = useState("");
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showMessageDialog, setShowMessageDialog] = useState(false);
+  const [showDebtDialog, setShowDebtDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const { toast } = useToast();
   const [sortField, setSortField] = useState<'name' | 'amount_paid' | 'due_date' | 'status' | 'debt' | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -69,11 +74,32 @@ const Clients = () => {
 
         if (error) throw error;
 
-        const typedClients = (data || []).map(client => ({
-          ...client,
-          status: client.status as ClientStatus,
-          debt: client.debt || 0
-        }));
+        const typedClients = (data || []).map(client => {
+          const rawClient = client as {
+            id: string;
+            name: string;
+            phone_number: string;
+            amount_paid: number;
+            debt?: number;
+            status: string;
+            created_at: string;
+            updated_at: string;
+            due_date: string;
+          };
+
+          const typedClient: Client = {
+            id: rawClient.id,
+            name: rawClient.name,
+            phone_number: rawClient.phone_number,
+            amount_paid: rawClient.amount_paid,
+            debt: rawClient.debt ?? 0,
+            status: rawClient.status as ClientStatus,
+            created_at: rawClient.created_at,
+            updated_at: rawClient.updated_at,
+            due_date: rawClient.due_date
+          };
+          return typedClient;
+        });
 
         setClients(typedClients);
         setFilteredClients(typedClients);
@@ -190,22 +216,6 @@ const Clients = () => {
         nextDueDate.setDate(targetDay);
         
         updates.due_date = nextDueDate.toISOString().split('T')[0];
-        
-        const { data: clientData } = await supabase
-          .from("clients")
-          .select("amount_paid, debt")
-          .eq("id", clientId)
-          .single();
-          
-        if (clientData) {
-          const currentDebt = clientData.debt || 0;
-          if (currentStatus === "Pending" || currentStatus === "Suspended") {
-            const isLate = new Date() > dueDate;
-            if (isLate) {
-              updates.debt = currentDebt + clientData.amount_paid;
-            }
-          }
-        }
       }
 
       updates.status = newStatus;
@@ -331,14 +341,29 @@ const Clients = () => {
     );
   }
 
+  const getStatusEmoji = (status: ClientStatus) => {
+    switch (status) {
+      case "Paid":
+        return "✅";
+      case "Pending":
+        return "⏳";
+      case "Overdue":
+        return "⚠️";
+      default:
+        return "❓";
+    }
+  };
+
   const getStatusColor = (status: ClientStatus) => {
     switch (status) {
       case "Paid":
-        return "bg-green-500 hover:bg-green-600";
-      case "Suspended":
-        return "bg-red-500 hover:bg-red-600";
+        return "text-green-600 bg-green-50";
+      case "Pending":
+        return "text-yellow-600 bg-yellow-50";
+      case "Overdue":
+        return "text-red-600 bg-red-50";
       default:
-        return "bg-gray-400 hover:bg-gray-500";
+        return "text-gray-600 bg-gray-50";
     }
   };
 
@@ -439,7 +464,6 @@ const Clients = () => {
                   <TableHead>💳 Payment</TableHead>
                   <TableHead>⚠️ Is Suspended</TableHead>
                   <TableHead>⚙️ Actions</TableHead>
-                  <TableHead>💬 Comm</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -465,17 +489,11 @@ const Clients = () => {
                       )}
                     </TableCell>
                     <TableCell>{formatDate(client.due_date)}</TableCell>
-                    <TableCell>
-                      <span className={
-                        client.status === "Paid" ? "text-green-500" :
-                        client.status === "Suspended" ? "text-red-500" :
-                        "text-yellow-500"
-                      }>
-                        {client.status === "Paid" ? "✅" :
-                         client.status === "Suspended" ? "❌" :
-                         "⏳"}
-                        {" "}{client.status}
-                      </span>
+                    <TableCell className="font-medium">
+                      <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${getStatusColor(client.status)}`}>
+                        <span className="text-xl">{getStatusEmoji(client.status)}</span>
+                        <span>{client.status}</span>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Switch
@@ -506,24 +524,29 @@ const Clients = () => {
                       </Button>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <ClientDialog 
-                          mode="edit" 
-                          client={client} 
-                          onSuccess={handleRefresh}
+                      <div className="flex space-x-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setSelectedClient(client);
+                            setShowEditDialog(true);
+                          }}
+                          className="hover:bg-blue-50 text-blue-600"
                         >
-                          <Button variant="ghost" size="icon">
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        </ClientDialog>
-                        <DebtManagementDialog
-                          client={client}
-                          onSuccess={handleRefresh}
+                          <span className="text-xl">✏️</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setSelectedClient(client);
+                            setShowDebtDialog(true);
+                          }}
+                          className="hover:bg-purple-50 text-purple-600"
                         >
-                          <Button variant="ghost" size="icon">
-                            💰
-                          </Button>
-                        </DebtManagementDialog>
+                          <span className="text-xl">💰</span>
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -531,17 +554,11 @@ const Clients = () => {
                             setClientToDelete(client.id);
                             setDeleteDialogOpen(true);
                           }}
+                          className="hover:bg-red-50 text-red-600"
                         >
-                          <Trash2 className="h-4 w-4 text-red-500" />
+                          <span className="text-xl">🗑️</span>
                         </Button>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <MessageDialog client={client}>
-                        <Button variant="ghost" size="icon">
-                          <MessageCircle className="h-4 w-4" />
-                        </Button>
-                      </MessageDialog>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -615,7 +632,8 @@ const Clients = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Client</AlertDialogTitle>
             <AlertDialogDescription>
-              Enter admin password to delete this client. This action cannot be undone.
+              Are you sure you want to delete this client? This action cannot be undone.
+              Please enter the admin password to confirm.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="py-4">
@@ -640,6 +658,33 @@ const Clients = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {selectedClient && (
+        <>
+          <ClientDialog
+            mode="edit"
+            client={selectedClient}
+            open={showEditDialog}
+            onOpenChange={setShowEditDialog}
+            onSuccess={() => {
+              setShowEditDialog(false);
+              setSelectedClient(null);
+              handleRefresh();
+            }}
+          />
+
+          <DebtManagementDialog
+            client={selectedClient}
+            open={showDebtDialog}
+            onOpenChange={setShowDebtDialog}
+            onSuccess={() => {
+              setShowDebtDialog(false);
+              setSelectedClient(null);
+              handleRefresh();
+            }}
+          />
+        </>
+      )}
     </div>
   );
 };

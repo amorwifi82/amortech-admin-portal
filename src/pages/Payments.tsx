@@ -119,7 +119,7 @@ const Payments = () => {
           <CardContent className="p-0">
             <div className="flex items-center space-x-4">
               <div className="p-2 bg-blue-500 rounded-lg">
-                <span className="text-2xl">💵</span>
+                <span className="text-3xl">💵</span>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Monthly Collection</p>
@@ -134,7 +134,7 @@ const Payments = () => {
           <CardContent className="p-0">
             <div className="flex items-center space-x-4">
               <div className="p-2 bg-green-500 rounded-lg">
-                <span className="text-2xl">📈</span>
+                <span className="text-3xl">📈</span>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Monthly Profit</p>
@@ -149,7 +149,7 @@ const Payments = () => {
           <CardContent className="p-0">
             <div className="flex items-center space-x-4">
               <div className="p-2 bg-purple-500 rounded-lg">
-                <span className="text-2xl">💰</span>
+                <span className="text-3xl">💰</span>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Total Revenue</p>
@@ -164,7 +164,7 @@ const Payments = () => {
           <CardContent className="p-0">
             <div className="flex items-center space-x-4">
               <div className="p-2 bg-red-500 rounded-lg">
-                <span className="text-2xl">🚨</span>
+                <span className="text-3xl">⚠️</span>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Total Outstanding Debt</p>

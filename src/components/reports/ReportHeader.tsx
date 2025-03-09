@@ -1,30 +1,42 @@
-
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { Printer, Download } from "lucide-react";
 
-interface ReportHeaderProps {
+export const ReportHeader = ({ 
+  onExportPDF, 
+  onPrint, 
+  onGenerateReport 
+}: { 
+  onExportPDF: () => void;
   onPrint: () => void;
-  onExport: () => void;
-}
-
-export const ReportHeader = ({ onPrint, onExport }: ReportHeaderProps) => {
+  onGenerateReport: () => void;
+}) => {
   return (
-    <div className="flex justify-between items-center mb-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Reports</h1>
-        <p className="text-muted-foreground mt-2">
-          Generate and analyze detailed business reports
-        </p>
-      </div>
-      <div className="flex gap-4">
-        <Button variant="outline" size="sm" onClick={onPrint}>
-          <Printer className="mr-2 h-4 w-4" />
-          Print
+    <div className="flex justify-between items-center mb-6">
+      <h2 className="text-2xl font-bold">Reports 📊</h2>
+      <div className="flex gap-2">
+        <Button 
+          variant="outline" 
+          onClick={onGenerateReport}
+          className="flex items-center gap-2"
+        >
+          <span className="text-lg">📝</span>
+          Generate Report
         </Button>
-        <Button variant="default" size="sm" onClick={onExport}>
-          <Download className="mr-2 h-4 w-4" />
+        <Button 
+          variant="outline" 
+          onClick={onExportPDF}
+          className="flex items-center gap-2"
+        >
+          <span className="text-lg">📄</span>
           Export PDF
+        </Button>
+        <Button 
+          variant="outline" 
+          onClick={onPrint}
+          className="flex items-center gap-2"
+        >
+          <span className="text-lg">🖨️</span>
+          Print
         </Button>
       </div>
     </div>

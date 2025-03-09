@@ -178,13 +178,13 @@ const Sidebar = React.forwardRef<
     const location = useLocation()
 
     const menuItems = [
-      { href: "/", label: "Dashboard", emoji: "📊" },
-      { href: "/clients", label: "Clients", emoji: "👥" },
-      { href: "/payments", label: "Payments", emoji: "💳" },
-      { href: "/expenses", label: "Expenses", emoji: "💰" },
-      { href: "/reports", label: "Reports", emoji: "📈" },
-      { href: "/messages", label: "Messages", emoji: "💬" },
-      { href: "/settings", label: "Settings", emoji: "⚙️" },
+      { path: "/", label: "Dashboard", emoji: "📊" },
+      { path: "/clients", label: "Clients", emoji: "👥" },
+      { path: "/payments", label: "Payments", emoji: "💳" },
+      { path: "/expenses", label: "Expenses", emoji: "💰" },
+      { path: "/reports", label: "Reports", emoji: "📈" },
+      { path: "/messages", label: "Messages", emoji: "💬" },
+      { path: "/settings", label: "Settings", emoji: "⚙️" },
     ]
 
     if (collapsible === "none") {
@@ -223,19 +223,19 @@ const Sidebar = React.forwardRef<
                     Menu
                   </h2>
                   <div className="space-y-1">
-                    {menuItems.map(({ href, label, emoji }) => (
+                    {menuItems.map((item) => (
                       <Link
-                        key={href}
-                        to={href}
+                        key={item.path}
+                        to={item.path}
                         className={cn(
                           "flex items-center gap-3 rounded-lg px-3 py-2 text-lg transition-colors hover:bg-accent hover:text-accent-foreground",
-                          location.pathname === href
+                          location.pathname === item.path
                             ? "bg-accent text-accent-foreground"
                             : "text-muted-foreground hover:text-primary"
                         )}
                       >
-                        <span className="text-xl">{emoji}</span>
-                        <span>{label}</span>
+                        <span className="text-xl">{item.emoji}</span>
+                        <span>{item.label.split(" ")[1]}</span>
                       </Link>
                     ))}
                   </div>
@@ -291,19 +291,19 @@ const Sidebar = React.forwardRef<
                   Menu
                 </h2>
                 <div className="space-y-1">
-                  {menuItems.map(({ href, label, emoji }) => (
+                  {menuItems.map((item) => (
                     <Link
-                      key={href}
-                      to={href}
+                      key={item.path}
+                      to={item.path}
                       className={cn(
                         "flex items-center gap-3 rounded-lg px-3 py-2 text-lg transition-colors hover:bg-accent hover:text-accent-foreground",
-                        location.pathname === href
+                        location.pathname === item.path
                           ? "bg-accent text-accent-foreground"
                           : "text-muted-foreground hover:text-primary"
                       )}
                     >
-                      <span className="text-xl">{emoji}</span>
-                      <span>{label}</span>
+                      <span className="text-xl">{item.emoji}</span>
+                      <span>{item.label.split(" ")[1]}</span>
                     </Link>
                   ))}
                 </div>

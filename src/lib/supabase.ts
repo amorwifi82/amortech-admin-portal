@@ -1,4 +1,4 @@
-export type ClientStatus = "Paid" | "Pending" | "Suspended";
+export type ClientStatus = "Pending" | "Paid" | "Overdue" | "Suspended";
 
 export interface Client {
   id: string;
@@ -7,9 +7,9 @@ export interface Client {
   amount_paid: number;
   debt: number;
   status: ClientStatus;
-  due_date: string;
   created_at: string;
   updated_at: string;
+  due_date: string;
 }
 
 export interface Message {

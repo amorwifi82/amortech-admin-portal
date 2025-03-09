@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -104,49 +104,67 @@ export const FinancialSummary = ({ selectedYear }: FinancialSummaryProps) => {
     };
   });
 
+  const outstandingPayments = 0; // Assuming outstandingPayments is 0
+
   return (
     <Card className="p-6">
       <h3 className="text-lg font-semibold mb-6">Financial Overview</h3>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <div className="p-4 rounded-lg bg-green-50 border border-green-100">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-500 rounded-lg">
-              <Wallet className="h-5 w-5 text-white" />
+      <div className="grid gap-4 md:grid-cols-4 mb-6">
+        <Card className="bg-gradient-to-br from-green-50 to-green-100">
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-4">
+              <div className="p-2 bg-green-500 rounded-lg">
+                <span className="text-3xl">💰</span>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Total Revenue</p>
+                <h3 className="text-2xl font-bold">KES {totalCollected.toLocaleString()}</h3>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Total Revenue</p>
-              <p className="text-2xl font-bold text-green-700">
-                KES {totalCollected.toLocaleString()}
-              </p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-red-50 to-red-100">
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-4">
+              <div className="p-2 bg-red-500 rounded-lg">
+                <span className="text-3xl">💸</span>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Total Expenses</p>
+                <h3 className="text-2xl font-bold">KES {totalExpenses.toLocaleString()}</h3>
+              </div>
             </div>
-          </div>
-        </div>
-        <div className="p-4 rounded-lg bg-red-50 border border-red-100">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-red-500 rounded-lg">
-              <ArrowDownCircle className="h-5 w-5 text-white" />
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-blue-50 to-blue-100">
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-4">
+              <div className="p-2 bg-blue-500 rounded-lg">
+                <span className="text-3xl">📈</span>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Net Profit</p>
+                <h3 className="text-2xl font-bold">KES {netProfit.toLocaleString()}</h3>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Total Expenses</p>
-              <p className="text-2xl font-bold text-red-700">
-                KES {totalExpenses.toLocaleString()}
-              </p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100">
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-4">
+              <div className="p-2 bg-yellow-500 rounded-lg">
+                <span className="text-3xl">⚠️</span>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Outstanding</p>
+                <h3 className="text-2xl font-bold">KES {outstandingPayments.toLocaleString()}</h3>
+              </div>
             </div>
-          </div>
-        </div>
-        <div className="p-4 rounded-lg bg-blue-50 border border-blue-100">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-500 rounded-lg">
-              <TrendingUp className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Net Profit</p>
-              <p className="text-2xl font-bold text-blue-700">
-                KES {netProfit.toLocaleString()}
-              </p>
-            </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
       <div className="h-[300px]">
         <ResponsiveContainer width="100%" height="100%">

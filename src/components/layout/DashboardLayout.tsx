@@ -1,15 +1,6 @@
 import { useState, useEffect } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
-import {
-  LayoutDashboard,
-  Users,
-  CreditCard,
-  FileText,
-  LogOut,
-  DollarSign,
-  Settings,
-  Menu,
-} from "lucide-react";
+import { LogOut, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -113,39 +104,39 @@ const DashboardLayout = () => {
 
   const menuItems = [
     {
-      icon: LayoutDashboard,
-      label: "Dashboard",
       path: "/dashboard",
+      label: "Dashboard",
+      icon: "📊",
       color: "#4f46e5",
     },
     {
-      icon: Users,
-      label: "Clients",
       path: "/dashboard/clients",
+      label: "Clients",
+      icon: "👥",
       color: "#0891b2",
     },
     {
-      icon: CreditCard,
-      label: "Payments",
       path: "/dashboard/payments",
+      label: "Payments",
+      icon: "💳",
       color: "#059669",
     },
     {
-      icon: FileText,
-      label: "Reports",
       path: "/dashboard/reports",
+      label: "Reports",
+      icon: "📈",
       color: "#9333ea",
     },
     {
-      icon: DollarSign,
-      label: "Expenses",
       path: "/dashboard/expenses",
+      label: "Expenses",
+      icon: "💰",
       color: "#e11d48",
     },
     {
-      icon: Settings,
-      label: "Settings",
       path: "/dashboard/settings",
+      label: "Settings",
+      icon: "⚙️",
       color: "#475569",
     },
   ];
@@ -171,20 +162,20 @@ const DashboardLayout = () => {
         >
           <div className="flex flex-col h-full">
             <div className="space-y-1">
-              <h2 className="text-xl font-bold mb-6 truncate">{companyName}</h2>
+              <h2 className="text-2xl font-bold mb-6 truncate">{companyName}</h2>
               {menuItems.map((item) => (
                 <Button
                   key={item.label}
                   variant="ghost"
-                  className={`w-full justify-start ${getMenuItemStyles(item.label)}`}
+                  className={`w-full justify-start text-lg ${getMenuItemStyles(item.label)}`}
                   onClick={() => {
                     setActivePage(item.label.toLowerCase());
                     navigate(item.path);
                     if (isMobile) setIsMenuOpen(false);
                   }}
                 >
-                  <item.icon className="mr-2 h-4 w-4" color={item.color} />
-                  {item.label}
+                  <span className="text-2xl mr-3">{item.icon}</span>
+                  <span className="text-lg">{item.label}</span>
                 </Button>
               ))}
             </div>
@@ -194,8 +185,8 @@ const DashboardLayout = () => {
                 className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50"
                 onClick={handleLogout}
               >
-                <LogOut className="mr-2 h-4 w-4" />
-                Logout
+                <LogOut className="mr-3 h-5 w-5" />
+                <span className="text-lg">Logout</span>
               </Button>
             </div>
           </div>

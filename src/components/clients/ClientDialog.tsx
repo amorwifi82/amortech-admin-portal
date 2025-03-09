@@ -30,6 +30,8 @@ interface ClientDialogProps {
     due_date: string;
     status: ClientStatus;
   };
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 const validateKenyanPhoneNumber = (phone: string): string => {
@@ -60,8 +62,7 @@ const validateKenyanPhoneNumber = (phone: string): string => {
   return cleaned;
 };
 
-const ClientDialog = ({ mode, onSuccess, children, client }: ClientDialogProps) => {
-  const [open, setOpen] = useState(false);
+const ClientDialog = ({ mode, onSuccess, children, client, open, onOpenChange }: ClientDialogProps) => {
   const [loading, setLoading] = useState(false);
   const [previewData, setPreviewData] = useState<any[]>([]);
   const [showPreview, setShowPreview] = useState(false);
@@ -306,7 +307,6 @@ const ClientDialog = ({ mode, onSuccess, children, client }: ClientDialogProps) 
         title: "Success",
         description: `Imported ${previewData.length} clients successfully`,
       });
-      setOpen(false);
       setShowPreview(false);
       setPreviewData([]);
       onSuccess();
@@ -351,7 +351,6 @@ const ClientDialog = ({ mode, onSuccess, children, client }: ClientDialogProps) 
         });
       }
 
-      setOpen(false);
       onSuccess();
     } catch (error: any) {
       console.error("Error saving client:", error);
@@ -402,7 +401,7 @@ const ClientDialog = ({ mode, onSuccess, children, client }: ClientDialogProps) 
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         {children || (
           <Button variant={mode === "import" ? "outline" : "default"}>
