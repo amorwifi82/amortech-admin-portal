@@ -182,6 +182,7 @@ const Sidebar = React.forwardRef<
       { path: "/clients", label: "Clients", emoji: "👥" },
       { path: "/payments", label: "Payments", emoji: "💳" },
       { path: "/expenses", label: "Expenses", emoji: "💰" },
+      { path: "/debt", label: "Debt Management", emoji: "🔄" },
       { path: "/reports", label: "Reports", emoji: "📈" },
       { path: "/messages", label: "Messages", emoji: "💬" },
       { path: "/settings", label: "Settings", emoji: "⚙️" },
@@ -222,20 +223,20 @@ const Sidebar = React.forwardRef<
                   <h2 className="mb-2 px-4 text-2xl font-semibold tracking-tight">
                     Menu
                   </h2>
-                  <div className="space-y-1">
+                  <div className="space-y-3">
                     {menuItems.map((item) => (
                       <Link
                         key={item.path}
                         to={item.path}
                         className={cn(
-                          "flex items-center gap-3 rounded-lg px-3 py-2 text-lg transition-colors hover:bg-accent hover:text-accent-foreground",
+                          "flex items-center gap-3 rounded-lg px-3 py-2.5 text-lg transition-colors hover:bg-accent hover:text-accent-foreground",
                           location.pathname === item.path
                             ? "bg-accent text-accent-foreground"
                             : "text-muted-foreground hover:text-primary"
                         )}
                       >
                         <span className="text-xl">{item.emoji}</span>
-                        <span>{item.label.split(" ")[1]}</span>
+                        <span>{item.label}</span>
                       </Link>
                     ))}
                   </div>
@@ -303,7 +304,7 @@ const Sidebar = React.forwardRef<
                       )}
                     >
                       <span className="text-xl">{item.emoji}</span>
-                      <span>{item.label.split(" ")[1]}</span>
+                      <span>{item.label}</span>
                     </Link>
                   ))}
                 </div>

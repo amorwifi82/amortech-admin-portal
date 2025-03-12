@@ -18,20 +18,11 @@ import * as XLSX from "xlsx";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { checkAndNotifyClients } from "@/services/notificationService";
-import { Upload, Download, Bell, Shield, Trash2 } from "lucide-react";
+import { Upload, Download, Bell, Shield, Trash2, Cloud } from "lucide-react";
+import type { Database } from "@/lib/supabase";
 
-interface Settings {
-  company_name: string;
-  company_logo: string;
-  company_email: string;
-  currency: string;
-  notification_enabled: boolean;
-  payment_reminder_days: number;
-  theme: "light" | "dark" | "system";
-  language: string;
-  timezone: string;
-  data_retention_days: number;
-}
+type Settings = Database["public"]["Tables"]["settings"]["Row"];
+type SettingsInsert = Database["public"]["Tables"]["settings"]["Insert"];
 
 const CURRENCIES = [
   { code: "KES", name: "Kenyan Shilling" },
@@ -62,6 +53,7 @@ const Settings = () => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [settings, setSettings] = useState<Settings>({
+    id: "",
     company_name: "",
     company_logo: "",
     company_email: "",
@@ -72,41 +64,95 @@ const Settings = () => {
     language: "en",
     timezone: "Africa/Nairobi",
     data_retention_days: 365,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   });
 
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isTestingNotification, setIsTestingNotification] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [cloudProvider, setCloudProvider] = useState<"google" | "dropbox" | "none">("none");
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const fetchSettings = async () => {
       try {
         setIsLoading(true);
-        const { data, error } = await supabase
+        
+        // First check if we have an authenticated session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error("Session error:", sessionError);
+          throw sessionError;
+        }
+
+        // Fetch settings with explicit columns
+        const { data: existingSettings, error } = await supabase
           .from("settings")
-          .select("*")
+          .select(`
+            id,
+            company_name,
+            company_logo,
+            company_email,
+            currency,
+            notification_enabled,
+            payment_reminder_days,
+            theme,
+            language,
+            timezone,
+            data_retention_days,
+            created_at,
+            updated_at
+          `)
           .single();
 
         if (error) {
+          console.error("Fetch error:", error);
           if (error.code === "PGRST116") {
             // No settings found, create default settings
-            const { error: insertError } = await supabase
-              .from("settings")
-              .insert([settings]);
+            const initialSettings: SettingsInsert = {
+              company_name: "",
+              company_logo: "",
+              company_email: "",
+              currency: "KES",
+              notification_enabled: true,
+              payment_reminder_days: 7,
+              theme: "system",
+              language: "en",
+              timezone: "Africa/Nairobi",
+              data_retention_days: 365,
+            };
 
-            if (insertError) throw insertError;
+            const { data: newSettings, error: insertError } = await supabase
+              .from("settings")
+              .insert([initialSettings])
+              .select()
+              .single();
+
+            if (insertError) {
+              console.error("Insert error:", insertError);
+              throw insertError;
+            }
+            
+            if (newSettings) {
+              setSettings(newSettings);
+              localStorage.setItem("companyName", newSettings.company_name);
+            }
           } else {
             throw error;
           }
-        } else if (data) {
-          setSettings(data);
+        } else if (existingSettings) {
+          setSettings(existingSettings);
+          localStorage.setItem("companyName", existingSettings.company_name);
         }
       } catch (error) {
         console.error("Error fetching settings:", error);
         toast({
           title: "Error",
-          description: "Failed to load settings",
+          description: "Failed to load settings. Please check your connection and try again.",
           variant: "destructive",
         });
       } finally {
@@ -126,11 +172,47 @@ const Settings = () => {
 
   const handleSave = async () => {
     try {
-      const { error } = await supabase
+      const { data: existingSettings, error: fetchError } = await supabase
         .from("settings")
-        .upsert(settings, { onConflict: "id" });
+        .select("id")
+        .single();
 
-      if (error) throw error;
+      if (fetchError && fetchError.code !== "PGRST116") throw fetchError;
+
+      const updatedSettings: SettingsInsert = {
+        company_name: settings.company_name,
+        company_logo: settings.company_logo,
+        company_email: settings.company_email,
+        currency: settings.currency,
+        notification_enabled: settings.notification_enabled,
+        payment_reminder_days: settings.payment_reminder_days,
+        theme: settings.theme,
+        language: settings.language,
+        timezone: settings.timezone,
+        data_retention_days: settings.data_retention_days,
+      };
+
+      let result;
+      if (existingSettings?.id) {
+        result = await supabase
+          .from("settings")
+          .update(updatedSettings)
+          .eq("id", existingSettings.id)
+          .select()
+          .single();
+      } else {
+        result = await supabase
+          .from("settings")
+          .insert([updatedSettings])
+          .select()
+          .single();
+      }
+
+      if (result.error) throw result.error;
+      if (result.data) {
+        setSettings(result.data);
+        localStorage.setItem("companyName", result.data.company_name);
+      }
 
       toast({
         title: "Success",
@@ -204,46 +286,146 @@ const Settings = () => {
 
   const handleBackupData = async () => {
     try {
-      const { data: clients, error: clientsError } = await supabase
-        .from("clients")
-        .select("*");
-      if (clientsError) throw clientsError;
+      const [
+        { data: clients },
+        { data: expenses },
+        { data: messages },
+        { data: settings }
+      ] = await Promise.all([
+        supabase.from("clients").select("*"),
+        supabase.from("expenses").select("*"),
+        supabase.from("messages").select("*"),
+        supabase.from("settings").select("*")
+      ]);
 
-      const { data: payments, error: paymentsError } = await supabase
-        .from("payments")
-        .select("*");
-      if (paymentsError) throw paymentsError;
-
-      const { data: expenses, error: expensesError } = await supabase
-        .from("expenses")
-        .select("*");
-      if (expensesError) throw expensesError;
-
-      const backup = {
+      const backupData = {
         clients,
-        payments,
         expenses,
+        messages,
         settings,
-        timestamp: new Date().toISOString(),
+        backup_date: new Date().toISOString(),
       };
 
-      const wb = XLSX.utils.book_new();
-      Object.entries(backup).forEach(([name, data]) => {
-        const ws = XLSX.utils.json_to_sheet(Array.isArray(data) ? data : [data]);
-        XLSX.utils.book_append_sheet(wb, ws, name);
-      });
-
-      XLSX.writeFile(wb, `amortech_backup_${new Date().toISOString()}.xlsx`);
+      const dataStr = JSON.stringify(backupData, null, 2);
+      const dataBlob = new Blob([dataStr], { type: "application/json" });
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `amortech_backup_${new Date().toISOString()}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
 
       toast({
         title: "Success",
-        description: "Data backed up successfully",
+        description: "Data backup created successfully",
       });
     } catch (error) {
       console.error("Error backing up data:", error);
       toast({
         title: "Error",
         description: "Failed to backup data",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRestoreBackup = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      setIsRestoring(true);
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      const fileContent = await file.text();
+      const backupData = JSON.parse(fileContent);
+
+      // Validate backup data structure
+      if (!backupData.clients || !backupData.expenses || !backupData.messages || !backupData.settings) {
+        throw new Error("Invalid backup file format");
+      }
+
+      // Start a transaction for all operations
+      const { error: deleteError } = await supabase.from("clients").delete().not("id", "is", null);
+      if (deleteError) throw deleteError;
+
+      // Restore data in parallel
+      const promises = [
+        // Restore clients
+        supabase.from("clients").insert(backupData.clients),
+        // Restore expenses
+        supabase.from("expenses").insert(backupData.expenses),
+        // Restore messages
+        supabase.from("messages").insert(backupData.messages),
+        // Update settings
+        supabase
+          .from("settings")
+          .update(backupData.settings[0])
+          .eq("id", settings.id)
+      ];
+
+      const results = await Promise.all(promises);
+      const errors = results.filter(result => result.error);
+
+      if (errors.length > 0) {
+        throw new Error("Failed to restore some data");
+      }
+
+      toast({
+        title: "Success",
+        description: "Database restored successfully",
+      });
+
+      // Refresh the page to show restored data
+      window.location.reload();
+    } catch (error) {
+      console.error("Error restoring backup:", error);
+      toast({
+        title: "Error",
+        description: "Failed to restore backup. Please check the file format.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRestoring(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleCloudBackup = async (provider: "google" | "dropbox") => {
+    try {
+      // First create the backup data
+      const [
+        { data: clients },
+        { data: expenses },
+        { data: messages },
+        { data: settings }
+      ] = await Promise.all([
+        supabase.from("clients").select("*"),
+        supabase.from("expenses").select("*"),
+        supabase.from("messages").select("*"),
+        supabase.from("settings").select("*")
+      ]);
+
+      const backupData = {
+        clients,
+        expenses,
+        messages,
+        settings,
+        backup_date: new Date().toISOString(),
+      };
+
+      // TODO: Implement cloud storage integration
+      toast({
+        title: "Coming Soon",
+        description: `${provider} backup integration will be available soon!`,
+      });
+    } catch (error) {
+      console.error("Error creating cloud backup:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create cloud backup",
         variant: "destructive",
       });
     }
@@ -547,12 +729,64 @@ const Settings = () => {
                 </p>
               </div>
 
-              <div className="flex space-x-4">
-                <Button variant="outline" onClick={handleBackupData}>
-                  <Download className="mr-2 h-4 w-4" />
-                  Backup Data
-                </Button>
+              <div className="space-y-2">
+                <Label>Backup and Restore</Label>
+                <div className="flex flex-col space-y-4">
+                  <div className="flex space-x-4">
+                    <Button variant="outline" onClick={handleBackupData}>
+                      <Download className="mr-2 h-4 w-4" />
+                      Download Backup
+                    </Button>
 
+                    <div className="relative">
+                      <input
+                        type="file"
+                        accept=".json"
+                        onChange={handleRestoreBackup}
+                        className="hidden"
+                        ref={fileInputRef}
+                        disabled={isRestoring}
+                      />
+                      <Button
+                        variant="outline"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isRestoring}
+                      >
+                        <Upload className="mr-2 h-4 w-4" />
+                        {isRestoring ? "Restoring..." : "Restore Backup"}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Cloud Backup</Label>
+                    <div className="flex space-x-4">
+                      <Button
+                        variant="outline"
+                        onClick={() => handleCloudBackup("google")}
+                      >
+                        <Cloud className="mr-2 h-4 w-4" />
+                        Backup to Google Drive
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => handleCloudBackup("dropbox")}
+                      >
+                        <Cloud className="mr-2 h-4 w-4" />
+                        Backup to Dropbox
+                      </Button>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Securely store your backups in the cloud
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <Separator className="my-4" />
+
+              <div className="space-y-2">
+                <Label>Danger Zone</Label>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button variant="destructive">

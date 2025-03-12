@@ -10,24 +10,186 @@ export interface Database {
   public: {
     Tables: {
       clients: {
-        Row: Client
-        Insert: Omit<Client, "id" | "created_at">
-        Update: Partial<Omit<Client, "id" | "created_at">>
+        Row: {
+          id: string
+          name: string
+          phone_number: string
+          amount_paid: number
+          due_date: string
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          phone_number: string
+          amount_paid?: number
+          due_date: string
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          phone_number?: string
+          amount_paid?: number
+          due_date?: string
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
-      expenses: {
-        Row: Expense
-        Insert: Omit<Expense, "id" | "created_at">
-        Update: Partial<Omit<Expense, "id" | "created_at">>
-      }
-      payments: {
-        Row: Payment
-        Insert: Omit<Payment, "id" | "created_at">
-        Update: Partial<Omit<Payment, "id" | "created_at">>
+      debts: {
+        Row: {
+          id: string
+          client_id: string
+          amount: number
+          due_date: string
+          status: 'pending' | 'partially_paid' | 'paid'
+          collected_amount: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          client_id: string
+          amount: number
+          due_date: string
+          status?: 'pending' | 'partially_paid' | 'paid'
+          collected_amount?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          client_id?: string
+          amount?: number
+          due_date?: string
+          status?: 'pending' | 'partially_paid' | 'paid'
+          collected_amount?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "debts_client_id_fkey"
+            columns: ["client_id"]
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       settings: {
-        Row: Settings
-        Insert: Settings
-        Update: Partial<Settings>
+        Row: {
+          id: string
+          company_name: string
+          company_logo: string
+          company_email: string
+          currency: string
+          notification_enabled: boolean
+          payment_reminder_days: number
+          theme: "light" | "dark" | "system"
+          language: string
+          timezone: string
+          data_retention_days: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          company_name: string
+          company_logo: string
+          company_email: string
+          currency: string
+          notification_enabled?: boolean
+          payment_reminder_days?: number
+          theme?: "light" | "dark" | "system"
+          language?: string
+          timezone?: string
+          data_retention_days?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          company_name?: string
+          company_logo?: string
+          company_email?: string
+          currency?: string
+          notification_enabled?: boolean
+          payment_reminder_days?: number
+          theme?: "light" | "dark" | "system"
+          language?: string
+          timezone?: string
+          data_retention_days?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      expenses: {
+        Row: {
+          id: string
+          amount: number
+          category: string
+          description: string
+          date: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          amount: number
+          category: string
+          description: string
+          date?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          amount?: number
+          category?: string
+          description?: string
+          date?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      messages: {
+        Row: {
+          id: string
+          client_id: string
+          message: string
+          sent_at: string
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          client_id: string
+          message: string
+          sent_at?: string
+          status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          client_id?: string
+          message?: string
+          sent_at?: string
+          status?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_client_id_fkey"
+            columns: ["client_id"]
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          }
+        ]
       }
     }
     Views: {
@@ -39,31 +201,32 @@ export interface Database {
     Enums: {
       [_ in never]: never
     }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
 }
 
-export type ClientStatus = "Pending" | "Paid" | "Overdue" | "Suspended";
+export type ClientStatus = "Pending" | "Active" | "Suspended";
 
 export interface Client {
   id: string;
   name: string;
-  email: string;
-  phone: string;
-  address: string;
-  status: ClientStatus;
+  phone_number: string;
   amount_paid: number;
   due_date: string;
+  status: ClientStatus;
   debt: number;
   created_at: string;
   updated_at: string;
-  phone_number: string;
 }
 
 export interface Message {
   id: string;
-  content: string;
-  sender_id: string;
-  receiver_id: string;
+  client_id: string;
+  message: string;
+  sent_at: string;
+  status: string;
   created_at: string;
 }
 
@@ -71,12 +234,21 @@ export interface Expense {
   id: string;
   description: string;
   amount: number;
-  category: string;
   date: string;
+  category: string;
   created_at: string;
-  payment_method: string;
-  reference_number?: string;
-  notes?: string;
+  updated_at: string;
+}
+
+export interface Debt {
+  id: string;
+  client_id: string;
+  amount: number;
+  due_date: string;
+  status: "pending" | "partially_paid" | "paid";
+  collected_amount: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Payment {
@@ -91,7 +263,7 @@ export interface Payment {
 }
 
 export interface Settings {
-  id?: string;
+  id: string;
   company_name: string;
   company_logo: string;
   company_email: string;
@@ -102,6 +274,8 @@ export interface Settings {
   language: string;
   timezone: string;
   data_retention_days: number;
+  created_at: string;
+  updated_at: string;
 }
 
 // Type guard to check if response is a Client
@@ -109,13 +283,11 @@ export function isClient(obj: any): obj is Client {
   return obj && 
     typeof obj.id === 'string' &&
     typeof obj.name === 'string' &&
-    typeof obj.email === 'string' &&
-    typeof obj.phone === 'string' &&
-    typeof obj.address === 'string' &&
-    typeof obj.status === 'string' &&
+    typeof obj.phone_number === 'string' &&
     typeof obj.amount_paid === 'number' &&
-    typeof obj.debt === 'number' &&
-    typeof obj.due_date === 'string';
+    typeof obj.due_date === 'string' &&
+    typeof obj.status === 'string' &&
+    typeof obj.debt === 'number';
 }
 
 // Type guard for arrays

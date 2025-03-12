@@ -11,6 +11,7 @@ import Payments from "./pages/Payments";
 import Reports from "./pages/Reports";
 import Expenses from "./pages/Expenses";
 import Settings from "./pages/Settings";
+import DebtPage from "./pages/Debt";
 
 const queryClient = new QueryClient();
 
@@ -21,13 +22,14 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<LoginForm />} />
-          <Route path="/dashboard" element={<DashboardLayout />}>
+          <Route path="/login" element={<LoginForm />} />
+          <Route path="/" element={<DashboardLayout />}>
             <Route index element={<Dashboard />} />
             <Route path="clients" element={<Clients />} />
             <Route path="payments" element={<Payments />} />
-            <Route path="reports" element={<Reports />} />
             <Route path="expenses" element={<Expenses />} />
+            <Route path="debt" element={<DebtPage />} />
+            <Route path="reports" element={<Reports />} />
             <Route path="settings" element={<Settings />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -27,13 +27,18 @@ import {
   Cell,
 } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
-import type { Client, Expense } from "@/lib/supabase";
+import type { Database } from "@/lib/supabase";
+
+type Client = Database['public']['Tables']['clients']['Row'];
+type Expense = Database['public']['Tables']['expenses']['Row'];
+type Debt = Database['public']['Tables']['debts']['Row'];
 
 interface MonthlyData {
   month: string;
   revenue: number;
   expenses: number;
   profit: number;
+  debt: number;
 }
 
 interface StatusCount {
@@ -104,15 +109,24 @@ const Reports = () => {
         if (expensesError) throw expensesError;
         const expenses = expensesData as Expense[];
 
+        // Fetch debts data
+        const { data: debtsData, error: debtsError } = await supabase
+          .from("debts")
+          .select("*")
+          .gte("created_at", startDate.toISOString());
+
+        if (debtsError) throw debtsError;
+        const debts = debtsData as Debt[];
+
         // Process data
-        const monthlyStats = processMonthlyData(clients, expenses);
+        const monthlyStats = processMonthlyData(clients, expenses, debts);
         const statusStats = processClientStatuses(clients);
-        const debtStats = processDebtRanges(clients);
+        const debtStats = processDebtRanges(debts);
 
         // Calculate totals
-        const revenue = clients.reduce((sum, client) => sum + client.amount_paid, 0);
+        const revenue = clients.reduce((sum, client) => sum + (client.amount_paid || 0), 0);
         const expensesTotal = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-        const debt = clients.reduce((sum, client) => sum + (client.debt || 0), 0);
+        const debtTotal = debts.reduce((sum, debt) => sum + (debt.amount - (debt.collected_amount || 0)), 0);
 
         // Update state
         setMonthlyData(monthlyStats);
@@ -122,16 +136,25 @@ const Reports = () => {
         setTotalExpenses(expensesTotal);
         setTotalProfit(revenue - expensesTotal);
         setTotalClients(clients.length);
-        setActiveClients(clients.filter(c => c.status === "Paid").length);
-        setTotalDebt(debt);
+        setActiveClients(clients.filter(c => c.status === "paid").length);
+        setTotalDebt(debtTotal);
 
       } catch (error) {
         console.error("Error fetching report data:", error);
         toast({
           title: "Error",
-          description: "Failed to load report data",
+          description: error instanceof Error ? error.message : "Failed to load report data",
           variant: "destructive",
         });
+        setMonthlyData([]);
+        setClientStatuses([]);
+        setDebtRanges([]);
+        setTotalRevenue(0);
+        setTotalExpenses(0);
+        setTotalProfit(0);
+        setTotalClients(0);
+        setActiveClients(0);
+        setTotalDebt(0);
       } finally {
         setIsLoading(false);
       }
@@ -156,13 +179,22 @@ const Reports = () => {
       )
       .subscribe();
 
+    const debtsSubscription = supabase
+      .channel('debts-changes')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'debts' },
+        fetchData
+      )
+      .subscribe();
+
     return () => {
       clientsSubscription.unsubscribe();
       expensesSubscription.unsubscribe();
+      debtsSubscription.unsubscribe();
     };
   }, [timeRange, toast]);
 
-  const processMonthlyData = (clients: Client[], expenses: Expense[]): MonthlyData[] => {
+  const processMonthlyData = (clients: Client[], expenses: Expense[], debts: Debt[]): MonthlyData[] => {
     const monthlyMap = new Map<string, MonthlyData>();
 
     // Process revenue from clients
@@ -171,11 +203,11 @@ const Reports = () => {
       const monthKey = date.toLocaleString('default', { month: 'short', year: '2-digit' });
       
       if (!monthlyMap.has(monthKey)) {
-        monthlyMap.set(monthKey, { month: monthKey, revenue: 0, expenses: 0, profit: 0 });
+        monthlyMap.set(monthKey, { month: monthKey, revenue: 0, expenses: 0, profit: 0, debt: 0 });
       }
       
       const data = monthlyMap.get(monthKey)!;
-      data.revenue += client.amount_paid;
+      data.revenue += client.amount_paid || 0;
     });
 
     // Process expenses
@@ -184,11 +216,24 @@ const Reports = () => {
       const monthKey = date.toLocaleString('default', { month: 'short', year: '2-digit' });
       
       if (!monthlyMap.has(monthKey)) {
-        monthlyMap.set(monthKey, { month: monthKey, revenue: 0, expenses: 0, profit: 0 });
+        monthlyMap.set(monthKey, { month: monthKey, revenue: 0, expenses: 0, profit: 0, debt: 0 });
       }
       
       const data = monthlyMap.get(monthKey)!;
       data.expenses += expense.amount;
+    });
+
+    // Process debts
+    debts.forEach(debt => {
+      const date = new Date(debt.created_at);
+      const monthKey = date.toLocaleString('default', { month: 'short', year: '2-digit' });
+      
+      if (!monthlyMap.has(monthKey)) {
+        monthlyMap.set(monthKey, { month: monthKey, revenue: 0, expenses: 0, profit: 0, debt: 0 });
+      }
+      
+      const data = monthlyMap.get(monthKey)!;
+      data.debt += debt.amount - (debt.collected_amount || 0);
     });
 
     // Calculate profit and sort by date
@@ -218,7 +263,7 @@ const Reports = () => {
     }));
   };
 
-  const processDebtRanges = (clients: Client[]): DebtData[] => {
+  const processDebtRanges = (debts: Debt[]): DebtData[] => {
     const ranges = [
       { min: 0, max: 0, label: "No Debt" },
       { min: 1, max: 1000, label: "0-1,000" },
@@ -233,15 +278,15 @@ const Reports = () => {
       total: 0
     }));
 
-    clients.forEach(client => {
-      const debt = client.debt || 0;
+    debts.forEach(debt => {
+      const remainingDebt = debt.amount - (debt.collected_amount || 0);
       const rangeIndex = ranges.findIndex(range => 
-        debt >= range.min && debt <= range.max
+        remainingDebt >= range.min && remainingDebt <= range.max
       );
       
       if (rangeIndex !== -1) {
         debtData[rangeIndex].count++;
-        debtData[rangeIndex].total += debt;
+        debtData[rangeIndex].total += remainingDebt;
       }
     });
 
