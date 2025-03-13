@@ -34,21 +34,24 @@ import {
   TrendingUp,
   Users,
   Search,
-  Loader2
+  Loader2,
+  ChevronRight,
+  Send
 } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 
 type Debt = {
   id: string;
   client_id: string;
   amount: number;
   status: 'pending' | 'partially_paid' | 'paid';
+  due_date: string;
   created_at: string;
   client: {
     id: string;
     name: string;
     phone_number: string;
-    amount_paid: number;
-    status: string;
+    due_date: string;
   };
 };
 
@@ -68,58 +71,58 @@ const DebtPage = () => {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
+  const [showAllUpcomingDialog, setShowAllUpcomingDialog] = useState(false);
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [reminderMessage, setReminderMessage] = useState('');
+  const [sendingReminder, setSendingReminder] = useState(false);
 
   const fetchDebts = async () => {
     try {
       setLoading(true);
       
-      console.log('Fetching debts from clients...');
+      console.log('Fetching all debts...');
       
-      const { data: clientsData, error } = await supabase
-        .from('clients')
+      const { data: debtsData, error } = await supabase
+        .from('debts')
         .select(`
           id,
-          name,
-          phone_number,
-          amount_paid,
+          client_id,
+          amount,
           status,
-          created_at
+          due_date,
+          created_at,
+          client:clients (
+            id,
+            name,
+            phone_number,
+            due_date
+          )
         `)
-        .neq('status', 'Paid')
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error fetching clients with debt:', error);
+        console.error('Error fetching debts:', error);
         throw error;
       }
 
-      console.log('Clients with unpaid status:', clientsData);
+      console.log('Raw debts data:', debtsData);
 
-      if (!clientsData || clientsData.length === 0) {
-        console.log('No clients with debt found');
+      if (!debtsData || debtsData.length === 0) {
+        console.log('No debts found');
         setDebts([]);
         return;
       }
 
-      // Transform clients data into debt records
-      const transformedData = clientsData.map(client => ({
-        id: client.id, // Using client id as debt id
-        client_id: client.id,
-        amount: client.amount_paid, // Using amount_paid as the debt amount
-        status: client.status === 'Paid' ? 'paid' : 
-                client.status === 'Partially Paid' ? 'partially_paid' : 'pending',
-        created_at: client.created_at,
-        client: {
-          id: client.id,
-          name: client.name,
-          phone_number: client.phone_number,
-          amount_paid: client.amount_paid,
-          status: client.status
-        }
-      })) as Debt[];
+      // Ensure all required fields are present
+      const validDebts = debtsData.filter(debt => 
+        debt && 
+        debt.client && 
+        debt.client.due_date &&
+        debt.amount !== undefined
+      ) as Debt[];
 
-      console.log('Transformed debt data:', transformedData);
-      setDebts(transformedData);
+      console.log('Processed debts:', validDebts);
+      setDebts(validDebts);
     } catch (error: any) {
       console.error('Detailed error fetching debts:', {
         message: error.message,
@@ -151,16 +154,6 @@ const DebtPage = () => {
 
       if (error) throw error;
 
-      // Update client's amount_paid
-      const { error: clientError } = await supabase
-        .from('clients')
-        .update({ 
-          amount_paid: debt.client.amount_paid + debt.amount
-        })
-        .eq('id', debt.client_id);
-
-      if (clientError) throw clientError;
-
       toast({
         title: 'Success',
         description: 'Debt marked as paid',
@@ -172,11 +165,7 @@ const DebtPage = () => {
           d.id === debtId 
             ? { 
                 ...d, 
-                status: 'paid',
-                client: {
-                  ...d.client,
-                  amount_paid: d.client.amount_paid + d.amount
-                }
+                status: 'paid'
               } 
             : d
         )
@@ -220,45 +209,77 @@ const DebtPage = () => {
         throw new Error('Please enter a valid amount');
       }
 
-      if (amount > paymentDialog.maxAmount) {
-        throw new Error('Payment amount cannot exceed the debt amount');
-      }
-
       const debt = debts.find(d => d.id === paymentDialog.debtId);
       if (!debt) throw new Error('Debt not found');
 
-      // Update client's amount_paid and status
-      const { error: clientError } = await supabase
-        .from('clients')
-        .update({ 
-          amount_paid: debt.client.amount_paid + amount,
-          status: amount === paymentDialog.maxAmount ? 'Paid' : 'Partially Paid'
-        })
-        .eq('id', debt.client_id);
+      if (amount > debt.amount) {
+        throw new Error('Payment amount cannot exceed the debt amount');
+      }
 
-      if (clientError) throw clientError;
+      const remainingAmount = debt.amount - amount;
+      const newStatus = remainingAmount === 0 ? 'paid' : 'partially_paid';
+
+      // Update current debt record
+      const { error: updateError } = await supabase
+        .from('debts')
+        .update({ 
+          status: newStatus,
+          amount: remainingAmount
+        })
+        .eq('id', debt.id);
+
+      if (updateError) throw updateError;
+
+      // If there's remaining debt, create a new debt record for the next subscription date
+      if (remainingAmount > 0) {
+        const { error: insertError } = await supabase
+          .from('debts')
+          .insert({
+            client_id: debt.client_id,
+            amount: remainingAmount,
+            status: 'pending',
+            due_date: debt.client.due_date,
+            created_at: new Date().toISOString()
+          });
+
+        if (insertError) throw insertError;
+      }
 
       toast({
         title: 'Success',
-        description: 'Payment recorded successfully'
+        description: remainingAmount > 0 
+          ? 'Payment recorded and remaining debt moved to next subscription'
+          : 'Payment recorded successfully'
       });
 
       // Update local state
-      setDebts(prevDebts =>
-        prevDebts.map(d =>
+      setDebts(prevDebts => {
+        const updatedDebts = prevDebts.map(d =>
           d.id === paymentDialog.debtId 
             ? {
                 ...d,
-                status: amount === paymentDialog.maxAmount ? 'paid' : 'partially_paid',
-                client: {
-                  ...d.client,
-                  amount_paid: d.client.amount_paid + amount,
-                  status: amount === paymentDialog.maxAmount ? 'Paid' : 'Partially Paid'
-                }
+                status: newStatus as Debt['status'],
+                amount: remainingAmount
               }
             : d
-        )
-      );
+        );
+
+        if (remainingAmount > 0) {
+          // Add the new debt record with proper typing
+          const newDebt: Debt = {
+            id: Date.now().toString(), // Temporary ID until refresh
+            client_id: debt.client_id,
+            amount: remainingAmount,
+            status: 'pending',
+            due_date: debt.client.due_date,
+            created_at: new Date().toISOString(),
+            client: debt.client
+          };
+          updatedDebts.unshift(newDebt);
+        }
+
+        return updatedDebts;
+      });
 
       handleClosePaymentDialog();
     } catch (error: any) {
@@ -270,6 +291,64 @@ const DebtPage = () => {
       });
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const getUpcomingPayments = (limit?: number) => {
+    const now = new Date();
+    const fiveDaysFromNow = new Date();
+    fiveDaysFromNow.setDate(now.getDate() + 5);
+    
+    const upcomingDebts = debts.filter(debt => {
+      const dueDate = new Date(debt.due_date);
+      return debt.status !== 'paid' && 
+             dueDate >= now && 
+             dueDate <= fiveDaysFromNow;
+    });
+
+    return limit ? upcomingDebts.slice(0, limit) : upcomingDebts;
+  };
+
+  const handleSendReminder = async (clientId: string) => {
+    if (!reminderMessage.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Please enter a reminder message',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setSendingReminder(true);
+      
+      const { error } = await supabase
+        .from('messages')
+        .insert({
+          client_id: clientId,
+          message: reminderMessage,
+          status: 'pending',
+          sent_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: 'Payment reminder has been scheduled',
+      });
+
+      setReminderMessage('');
+      setSelectedClientId(null);
+    } catch (error: any) {
+      console.error('Error sending reminder:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to send reminder',
+        variant: 'destructive',
+      });
+    } finally {
+      setSendingReminder(false);
     }
   };
 
@@ -328,6 +407,18 @@ const DebtPage = () => {
       case 'partially_paid': return '⏳';
       case 'pending': return '⚠️';
     }
+  };
+
+  const formatDueDate = (date: string) => {
+    return new Date(date).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const isOverdue = (dueDate: string) => {
+    return new Date(dueDate) < new Date();
   };
 
   return (
@@ -425,7 +516,7 @@ const DebtPage = () => {
                       <TableHead>Client Name</TableHead>
                       <TableHead>Phone Number</TableHead>
                       <TableHead>Debt Amount</TableHead>
-                      <TableHead>Client Status</TableHead>
+                      <TableHead>Due Date</TableHead>
                       <TableHead>Payment Status</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
@@ -472,9 +563,17 @@ const DebtPage = () => {
                               </div>
                             </TableCell>
                             <TableCell>
-                              <Badge variant="outline">
-                                {debt.client.status}
-                              </Badge>
+                              <div className={`flex items-center gap-2 ${
+                                isOverdue(debt.client.due_date) && debt.status !== 'paid' 
+                                  ? 'text-red-500' 
+                                  : ''
+                              }`}>
+                                <Calendar className="h-4 w-4" />
+                                {formatDueDate(debt.client.due_date)}
+                                {isOverdue(debt.client.due_date) && debt.status !== 'paid' && (
+                                  <Badge variant="destructive" className="text-xs">Overdue</Badge>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell>
                               <Badge
@@ -522,6 +621,59 @@ const DebtPage = () => {
         ))}
       </Tabs>
 
+      <Card 
+        className="p-4 hover:bg-accent/50 cursor-pointer transition-colors"
+        onClick={() => setShowAllUpcomingDialog(true)}
+      >
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <Clock className="h-5 w-5 text-yellow-500" />
+            Upcoming Payments
+          </h2>
+          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+        </div>
+        <div className="space-y-4">
+          {getUpcomingPayments(3).length === 0 ? (
+            <div className="text-center text-muted-foreground py-4">
+              No upcoming payments in the next 5 days
+            </div>
+          ) : (
+            getUpcomingPayments(3).map(debt => (
+              <div 
+                key={debt.id} 
+                className="flex items-center justify-between p-2 rounded-lg border"
+              >
+                <div className="flex items-center gap-4">
+                  <div>
+                    <p className="font-medium">{debt.client.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Due: {formatDueDate(debt.due_date)}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <p className="font-medium text-red-500">
+                      Kshs {debt.amount.toLocaleString()}
+                    </p>
+                    <Badge variant="outline" className="text-xs">
+                      {debt.status.replace('_', ' ')}
+                    </Badge>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleOpenPaymentDialog(debt.id, debt.amount)}
+                  >
+                    Record Payment
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </Card>
+
       <Dialog open={paymentDialog.isOpen} onOpenChange={handleClosePaymentDialog}>
         <DialogContent>
           <DialogHeader>
@@ -560,6 +712,106 @@ const DebtPage = () => {
             >
               {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Record Payment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showAllUpcomingDialog} onOpenChange={setShowAllUpcomingDialog}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>All Upcoming Payments</DialogTitle>
+            <DialogDescription>
+              Payments due within the next 5 days
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <ScrollArea className="h-[400px] pr-4">
+              {getUpcomingPayments().map(debt => (
+                <div 
+                  key={debt.id} 
+                  className="flex items-center justify-between p-3 rounded-lg border mb-3"
+                >
+                  <div className="flex items-center gap-4">
+                    <div>
+                      <p className="font-medium">{debt.client.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {debt.client.phone_number}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Due: {formatDueDate(debt.due_date)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <p className="font-medium text-red-500">
+                      Kshs {debt.amount.toLocaleString()}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleOpenPaymentDialog(debt.id, debt.amount)}
+                      >
+                        Record Payment
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => setSelectedClientId(debt.client_id)}
+                      >
+                        Send Reminder
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </ScrollArea>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog 
+        open={selectedClientId !== null} 
+        onOpenChange={() => {
+          setSelectedClientId(null);
+          setReminderMessage('');
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send Payment Reminder</DialogTitle>
+            <DialogDescription>
+              Send a payment reminder message to the client
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Message</label>
+              <Textarea
+                placeholder="Enter your reminder message..."
+                value={reminderMessage}
+                onChange={(e) => setReminderMessage(e.target.value)}
+                rows={4}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSelectedClientId(null);
+                setReminderMessage('');
+              }}
+              disabled={sendingReminder}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => selectedClientId && handleSendReminder(selectedClientId)}
+              disabled={sendingReminder || !reminderMessage.trim()}
+            >
+              {sendingReminder && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Send Reminder
             </Button>
           </DialogFooter>
         </DialogContent>
