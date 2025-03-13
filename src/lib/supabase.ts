@@ -7,7 +7,8 @@ if (!supabaseUrl || !supabaseKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+// Re-export the supabase client from the integrations file
+export { supabase } from '@/integrations/supabase/client';
 
 export type Json =
   | string

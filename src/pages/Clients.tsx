@@ -26,7 +26,7 @@ import ClientDialog from "@/components/clients/ClientDialog";
 import BatchOperationsDialog from "@/components/clients/BatchOperationsDialog";
 import ImportContactsButton from "@/components/clients/ImportContactsButton";
 import ExportButton from "@/components/clients/ExportButton";
-import { ChevronUp, ChevronDown, Pencil, Trash2, Power, MessageCircle } from "lucide-react";
+import { ChevronUp, ChevronDown, DollarSign, Users, Search, Power } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -595,7 +595,7 @@ const Clients = () => {
                 (page >= currentPage - 1 && page <= currentPage + 1)
               )
               .map((page, index, array) => (
-                <Fragment key={page}>
+                <div key={page}>
                   {index > 0 && array[index - 1] !== page - 1 && (
                     <span className="px-2">...</span>
                   )}
@@ -605,7 +605,7 @@ const Clients = () => {
                   >
                     {page}
                   </Button>
-                </Fragment>
+                </div>
               ))}
             <Button
               variant="outline"

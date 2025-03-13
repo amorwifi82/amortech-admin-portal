@@ -334,18 +334,18 @@ const Reports = () => {
 
       // Export the file
       XLSX.writeFile(workbook, `financial_report_${new Date().toISOString().split('T')[0]}.xlsx`);
-
-      toast({
-        title: "Success",
-        description: "Report exported successfully",
-      });
-    } catch (error) {
+        
+        toast({
+          title: "Success",
+          description: "Report exported successfully",
+        });
+      } catch (error) {
       console.error("Error exporting report:", error);
-      toast({
-        title: "Error",
+        toast({
+          title: "Error",
         description: "Failed to export report",
-        variant: "destructive",
-      });
+          variant: "destructive",
+        });
     }
   };
 

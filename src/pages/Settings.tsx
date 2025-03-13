@@ -393,8 +393,8 @@ const Settings = () => {
         throw new Error("Failed to restore some data");
       }
 
-      toast({
-        title: "Success",
+    toast({
+      title: "Success",
         description: "Database restored successfully",
       });
 
@@ -493,7 +493,7 @@ const Settings = () => {
             <p className="text-sm text-muted-foreground">Version {APP_VERSION}</p>
           </div>
         </Card>
-      </div>
+        </div>
 
       <Tabs defaultValue="general" className="space-y-4">
         <TabsList>
@@ -507,7 +507,7 @@ const Settings = () => {
         <TabsContent value="general" className="space-y-4">
           <Card className="p-6">
             <h3 className="text-lg font-semibold mb-4">Company Settings</h3>
-            <div className="space-y-4">
+        <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="company_name">Company Name</Label>
                 <Input
@@ -515,8 +515,8 @@ const Settings = () => {
                   value={settings.company_name}
                   onChange={(e) => handleChange("company_name", e.target.value)}
                   placeholder="Enter your company name"
-                />
-              </div>
+            />
+          </div>
 
               <div className="space-y-2">
                 <Label htmlFor="company_email">Company Email</Label>
@@ -527,7 +527,7 @@ const Settings = () => {
                   onChange={(e) => handleChange("company_email", e.target.value)}
                   placeholder="Enter your company email"
                 />
-              </div>
+        </div>
 
               <div className="space-y-2">
                 <Label htmlFor="company_logo">Company Logo URL</Label>
@@ -547,17 +547,17 @@ const Settings = () => {
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select currency" />
-                  </SelectTrigger>
-                  <SelectContent>
+              </SelectTrigger>
+              <SelectContent>
                     {CURRENCIES.map((currency) => (
                       <SelectItem key={currency.code} value={currency.code}>
                         {currency.name} ({currency.code})
                       </SelectItem>
                     ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
           </Card>
         </TabsContent>
 
@@ -614,7 +614,7 @@ const Settings = () => {
         <TabsContent value="security" className="space-y-4">
           <Card className="p-6">
             <h3 className="text-lg font-semibold mb-4">Security Settings</h3>
-            <div className="space-y-4">
+        <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="old_password">Current Password</Label>
                 <Input
@@ -628,14 +628,14 @@ const Settings = () => {
 
               <div className="space-y-2">
                 <Label htmlFor="new_password">New Password</Label>
-                <Input
+            <Input
                   id="new_password"
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Enter your new password"
-                />
-              </div>
+            />
+          </div>
 
               <div className="space-y-2">
                 <Label htmlFor="confirm_password">Confirm New Password</Label>
@@ -646,7 +646,7 @@ const Settings = () => {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Confirm your new password"
                 />
-              </div>
+        </div>
 
               <Button
                 onClick={handlePasswordChange}
@@ -662,7 +662,7 @@ const Settings = () => {
         <TabsContent value="backup" className="space-y-4">
           <Card className="p-6">
             <h3 className="text-lg font-semibold mb-4">Data Management</h3>
-            <div className="space-y-4">
+        <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="data_retention">Data Retention Period</Label>
                 <Select
@@ -748,29 +748,29 @@ const Settings = () => {
 
               <div className="space-y-2">
                 <Label>Danger Zone</Label>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
                     <Button variant="destructive">
                       <Trash2 className="mr-2 h-4 w-4" />
                       Clear Database
                     </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                      <AlertDialogDescription>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                  <AlertDialogDescription>
                         This action cannot be undone. This will permanently delete
                         all client data from the database.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleClearDatabase}>
-                        Continue
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleClearDatabase}>
+                    Continue
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
               </div>
             </div>
           </Card>
@@ -832,9 +832,9 @@ const Settings = () => {
                     </Badge>
                   </div>
                 </div>
-              </div>
-            </div>
-          </Card>
+          </div>
+        </div>
+      </Card>
         </TabsContent>
       </Tabs>
 

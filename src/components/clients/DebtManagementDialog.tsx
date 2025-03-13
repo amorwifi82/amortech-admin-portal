@@ -62,33 +62,44 @@ const DebtManagementDialog = ({
         throw new Error("Please enter a valid amount");
       }
 
-      // Update client's debt amount
-      const { error: clientError } = await supabase
-        .from("clients")
-        .update({ 
-          debt: amount 
-        } as Partial<Client>)
-        .eq("id", client.id);
-
-      if (clientError) throw clientError;
-
-      // Create or update debt record
+      // Create or update debt record first
       if (amount > 0) {
+        console.log('Creating new debt record...');
         const dueDate = new Date();
         dueDate.setMonth(dueDate.getMonth() + 1);
 
-        const { error: debtError } = await supabase
+        const { data: debtData, error: debtError } = await supabase
           .from("debts")
-          .upsert({
+          .insert({
             client_id: client.id,
             amount: amount,
             status: 'pending',
             due_date: dueDate.toISOString().split('T')[0],
             collected_amount: 0,
             created_at: new Date().toISOString()
-          });
+          })
+          .select('*')
+          .single();
 
-        if (debtError) throw debtError;
+        if (debtError) {
+          console.error('Error creating debt:', debtError);
+          throw debtError;
+        }
+
+        console.log('Created debt record:', debtData);
+
+        // Update client's debt amount
+        const { error: clientError } = await supabase
+          .from("clients")
+          .update({ 
+            debt: amount 
+          } as Partial<Client>)
+          .eq("id", client.id);
+
+        if (clientError) {
+          console.error('Error updating client:', clientError);
+          throw clientError;
+        }
 
         // Store the debt reminder in messages table
         const messageText = `Dear ${client.name}, this is a reminder that you have an outstanding balance of KES ${amount.toLocaleString()} for additional charges${debtReason ? ` (${debtReason})` : ''}. Please clear your payment.`;
@@ -103,7 +114,10 @@ const DebtManagementDialog = ({
             created_at: new Date().toISOString()
           });
 
-        if (messageError) throw messageError;
+        if (messageError) {
+          console.warn('Error creating message:', messageError);
+          // Don't throw here as it's not critical
+        }
       }
 
       toast({
@@ -114,6 +128,7 @@ const DebtManagementDialog = ({
       if (onOpenChange) onOpenChange(false);
       if (onSuccess) onSuccess();
     } catch (error: any) {
+      console.error('Error in handleUpdateDebt:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to update additional charges",
