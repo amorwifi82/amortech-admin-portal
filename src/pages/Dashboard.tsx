@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Menu, X } from "lucide-react";
+import { Menu, X, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Client, ClientStatus } from "@/lib/supabase";
 import { formatDistanceToNow } from "date-fns";
@@ -10,6 +10,7 @@ import StatsDialog from "@/components/dashboard/StatsDialog";
 import MessageDialog from "@/components/clients/MessageDialog";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface PaymentActivity {
   id: string;
@@ -34,7 +35,7 @@ const Dashboard = () => {
   const [recentActivities, setRecentActivities] = useState<PaymentActivity[]>([]);
   const [upcomingPayments, setUpcomingPayments] = useState<Client[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedDialog, setSelectedDialog] = useState<"total" | "overdue" | "active" | null>(null);
+  const [selectedDialog, setSelectedDialog] = useState<"total" | "overdue" | "active" | "upcoming" | null>(null);
   const [dialogClients, setDialogClients] = useState<Client[]>([]);
 
   const fetchClientStats = async () => {
@@ -53,7 +54,8 @@ const Dashboard = () => {
         const today = new Date();
         const daysDifference = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
         
-        if (daysDifference <= 10 && client.status === "Paid") {
+        const status = client.status as ClientStatus;
+        if (daysDifference <= 10 && status === "Active") {
           // Calculate next due date maintaining the same day of the month
           const nextDueDate = new Date(dueDate);
           nextDueDate.setMonth(nextDueDate.getMonth() + 1);
@@ -62,7 +64,7 @@ const Dashboard = () => {
           supabase
             .from("clients")
             .update({ 
-              status: "Pending",
+              status: "Pending" as ClientStatus,
               due_date: nextDueDate.toISOString().split('T')[0]
             })
             .eq("id", client.id)
@@ -78,7 +80,7 @@ const Dashboard = () => {
             });
           return { ...client, status: "Pending" as ClientStatus };
         }
-        return { ...client, status: client.status as ClientStatus };
+        return { ...client, status };
       });
 
       const stats = (typedClients as Client[]).reduce(
@@ -121,13 +123,33 @@ const Dashboard = () => {
       const { data: upcoming, error: upcomingError } = await supabase
         .from('clients')
         .select('*')
-        .eq('status', 'Pending')
-        .order('due_date', { ascending: true })
-        .limit(5);
+        .order('due_date', { ascending: true });
 
       if (upcomingError) throw upcomingError;
 
-      setUpcomingPayments(upcoming as Client[]);
+      // Filter clients with due dates within 5 days before and after current date
+      const now = new Date();
+      const fiveDaysAgo = new Date();
+      const fiveDaysFromNow = new Date();
+      fiveDaysAgo.setDate(now.getDate() - 5);
+      fiveDaysFromNow.setDate(now.getDate() + 5);
+
+      const upcomingClients = (upcoming as Client[])
+        .filter(client => {
+          const dueDate = new Date(client.due_date);
+          return dueDate >= fiveDaysAgo && dueDate <= fiveDaysFromNow;
+        })
+        .sort((a, b) => {
+          const dateA = new Date(a.due_date);
+          const dateB = new Date(b.due_date);
+          return dateA.getTime() - dateB.getTime();
+        });
+
+      // Show up to 20 clients in the preview card
+      setUpcomingPayments(upcomingClients.slice(0, 20));
+      
+      // Store all upcoming clients for the dialog
+      setDialogClients(upcomingClients);
 
     } catch (error: any) {
       console.error('Error fetching dashboard data:', error);
@@ -166,8 +188,14 @@ const Dashboard = () => {
     );
   }
 
-  const handleCardClick = async (type: "total" | "overdue" | "active") => {
+  const handleCardClick = async (type: "total" | "overdue" | "active" | "upcoming") => {
     try {
+      if (type === "upcoming") {
+        // For upcoming payments, we already have the filtered clients
+        setSelectedDialog(type);
+        return;
+      }
+
       const { data: clients, error } = await supabase
         .from('clients')
         .select('*');
@@ -310,32 +338,39 @@ const Dashboard = () => {
           </div>
         </Card>
 
-        <Card className="p-6 glass-card">
-          <h3 className="text-lg font-semibold mb-4">Upcoming Payments</h3>
-          <div className="space-y-4">
-            {upcomingPayments.map((client) => (
-              <div
-                key={client.id}
-                className="flex items-center justify-between py-2 border-b last:border-0"
-              >
-                <div>
-                  <p className="font-medium">{client.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    Due: KES {client.amount_paid.toLocaleString()} - {new Date(client.due_date).toLocaleDateString()}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <MessageDialog client={client} />
-                  <span className="text-sm text-amber-500">Pending</span>
-                </div>
-              </div>
-            ))}
-            {upcomingPayments.length === 0 && (
-              <p className="text-muted-foreground text-center py-4">
-                No upcoming payments
-              </p>
-            )}
+        <Card className="p-6 glass-card hover:bg-accent/50 cursor-pointer transition-all hover:scale-105"
+          onClick={() => setSelectedDialog("upcoming")}
+        >
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold">Upcoming Payments</h3>
+            <ChevronRight className="h-5 w-5 text-muted-foreground" />
           </div>
+          <ScrollArea className="h-[400px]">
+            <div className="space-y-4">
+              {upcomingPayments.map((client) => (
+                <div
+                  key={client.id}
+                  className="flex items-center justify-between py-2 border-b last:border-0"
+                >
+                  <div>
+                    <p className="font-medium">{client.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Due: KES {client.amount_paid.toLocaleString()} - {new Date(client.due_date).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <MessageDialog client={client} />
+                    <span className="text-sm text-amber-500">Pending</span>
+                  </div>
+                </div>
+              ))}
+              {upcomingPayments.length === 0 && (
+                <p className="text-muted-foreground text-center py-4">
+                  No upcoming payments
+                </p>
+              )}
+            </div>
+          </ScrollArea>
         </Card>
       </div>
 
@@ -347,6 +382,8 @@ const Dashboard = () => {
             ? "All Clients"
             : selectedDialog === "overdue"
             ? "Overdue Payments"
+            : selectedDialog === "upcoming"
+            ? "Upcoming Payments"
             : "Active Subscriptions"
         }
         description={
@@ -354,9 +391,11 @@ const Dashboard = () => {
             ? "List of all registered clients"
             : selectedDialog === "overdue"
             ? "Clients with pending payments"
+            : selectedDialog === "upcoming"
+            ? "Payments due in the next few days"
             : "Clients with active subscriptions"
         }
-        clients={dialogClients}
+        clients={selectedDialog === "upcoming" ? upcomingPayments : dialogClients}
         type={selectedDialog || "total"}
       />
     </div>

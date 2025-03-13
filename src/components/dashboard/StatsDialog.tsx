@@ -16,7 +16,7 @@ interface StatsDialogProps {
   title: string;
   description: string;
   clients: Client[];
-  type: "total" | "overdue" | "active";
+  type: "total" | "overdue" | "active" | "upcoming";
 }
 
 const StatsDialog = ({
@@ -53,14 +53,14 @@ const StatsDialog = ({
                       KES {client.amount_paid.toLocaleString()}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {type === "overdue"
+                      {type === "overdue" || type === "upcoming"
                         ? `Due: ${format(new Date(client.due_date), "do MMM yyyy")}`
                         : `Last paid: ${formatDistanceToNow(new Date(client.updated_at), {
                             addSuffix: true,
                           })}`}
                     </p>
                   </div>
-                  {(type === "overdue" || type === "active") && (
+                  {(type === "overdue" || type === "active" || type === "upcoming") && (
                     <MessageDialog client={client} />
                   )}
                 </div>

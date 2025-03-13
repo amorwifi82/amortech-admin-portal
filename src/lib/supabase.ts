@@ -109,6 +109,7 @@ export interface Database {
           data_retention_days: number
           created_at: string
           updated_at: string
+          version: string
         }
         Insert: {
           id?: string
@@ -124,6 +125,7 @@ export interface Database {
           data_retention_days?: number
           created_at?: string
           updated_at?: string
+          version?: string
         }
         Update: {
           id?: string
@@ -139,6 +141,7 @@ export interface Database {
           data_retention_days?: number
           created_at?: string
           updated_at?: string
+          version?: string
         }
         Relationships: []
       }
