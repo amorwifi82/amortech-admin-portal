@@ -184,7 +184,6 @@ const Sidebar = React.forwardRef<
       { path: "/expenses", label: "Expenses", emoji: "💰" },
       { path: "/debt", label: "Debt Management", emoji: "🔄" },
       { path: "/reports", label: "Reports", emoji: "📈" },
-      { path: "/messages", label: "Messages", emoji: "💬" },
       { path: "/settings", label: "Settings", emoji: "⚙️" },
     ]
 

@@ -18,8 +18,11 @@ import * as XLSX from "xlsx";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { checkAndNotifyClients } from "@/services/notificationService";
-import { Upload, Download, Bell, Shield, Trash2, Cloud } from "lucide-react";
+import { Upload, Download, Bell, Shield, Trash2, Cloud, Info } from "lucide-react";
 import type { Database } from "@/lib/supabase";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
 
 type Settings = Database["public"]["Tables"]["settings"]["Row"];
 type SettingsInsert = Database["public"]["Tables"]["settings"]["Insert"];
@@ -47,6 +50,25 @@ const DATA_RETENTION_OPTIONS = [
   { days: 180, label: "6 months" },
   { days: 365, label: "1 year" },
   { days: 730, label: "2 years" },
+];
+
+// Version information
+const APP_VERSION = "1.0.0";
+const CHANGELOG = [
+  {
+    version: "1.0.0",
+    date: "2024-03-19",
+    changes: [
+      "Initial release",
+      "Client management with real-time updates",
+      "Debt management system",
+      "Payment tracking and reminders",
+      "Automated notifications via WhatsApp and SMS",
+      "Data backup and restore functionality",
+      "Multi-currency support",
+      "Dark/Light theme support"
+    ]
+  }
 ];
 
 const Settings = () => {
@@ -462,24 +484,27 @@ const Settings = () => {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="space-y-1">
-        <h2 className="text-2xl font-bold tracking-tight">Settings</h2>
-        <p className="text-muted-foreground">
-          Manage your application preferences and configurations
-        </p>
+    <div className="container mx-auto py-6 space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">Settings</h1>
+        <Card className="p-4">
+          <div className="flex items-center gap-2">
+            <Info className="w-4 h-4" />
+            <p className="text-sm text-muted-foreground">Version {APP_VERSION}</p>
+          </div>
+        </Card>
       </div>
 
-      <Tabs defaultValue="company">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="company">Company</TabsTrigger>
+      <Tabs defaultValue="general" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
-          <TabsTrigger value="display">Display</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
-          <TabsTrigger value="data">Data Management</TabsTrigger>
+          <TabsTrigger value="backup">Backup & Restore</TabsTrigger>
+          <TabsTrigger value="about">About & Updates</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="company" className="space-y-4">
+        <TabsContent value="general" className="space-y-4">
           <Card className="p-6">
             <h3 className="text-lg font-semibold mb-4">Company Settings</h3>
             <div className="space-y-4">
@@ -586,70 +611,6 @@ const Settings = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="display" className="space-y-4">
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold mb-4">Display Settings</h3>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="theme">Theme</Label>
-                <Select
-                  value={settings.theme}
-                  onValueChange={(value: "light" | "dark" | "system") =>
-                    handleChange("theme", value)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select theme" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="light">Light</SelectItem>
-                    <SelectItem value="dark">Dark</SelectItem>
-                    <SelectItem value="system">System</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="language">Language</Label>
-                <Select
-                  value={settings.language}
-                  onValueChange={(value) => handleChange("language", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select language" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {LANGUAGES.map((language) => (
-                      <SelectItem key={language.code} value={language.code}>
-                        {language.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="timezone">Timezone</Label>
-                <Select
-                  value={settings.timezone}
-                  onValueChange={(value) => handleChange("timezone", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select timezone" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TIMEZONES.map((timezone) => (
-                      <SelectItem key={timezone.code} value={timezone.code}>
-                        {timezone.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </Card>
-        </TabsContent>
-
         <TabsContent value="security" className="space-y-4">
           <Card className="p-6">
             <h3 className="text-lg font-semibold mb-4">Security Settings</h3>
@@ -698,7 +659,7 @@ const Settings = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="data" className="space-y-4">
+        <TabsContent value="backup" className="space-y-4">
           <Card className="p-6">
             <h3 className="text-lg font-semibold mb-4">Data Management</h3>
             <div className="space-y-4">
@@ -810,6 +771,67 @@ const Settings = () => {
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
+              </div>
+            </div>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="about" className="space-y-6">
+          <Card className="p-6">
+            <h2 className="text-2xl font-semibold mb-4">About Amortech Admin Portal</h2>
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-medium">Current Version</h3>
+                <p className="text-muted-foreground">v{APP_VERSION}</p>
+              </div>
+              
+              <div>
+                <h3 className="text-lg font-medium mb-2">Changelog</h3>
+                <ScrollArea className="h-[400px] rounded-md border p-4">
+                  <Accordion type="single" collapsible className="w-full">
+                    {CHANGELOG.map((release) => (
+                      <AccordionItem key={release.version} value={release.version}>
+                        <AccordionTrigger>
+                          <div className="flex items-center gap-4">
+                            <span className="font-semibold">Version {release.version}</span>
+                            <span className="text-sm text-muted-foreground">
+                              {new Date(release.date).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <ul className="list-disc list-inside space-y-2">
+                            {release.changes.map((change, index) => (
+                              <li key={index} className="text-muted-foreground">
+                                {change}
+                              </li>
+                            ))}
+                          </ul>
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
+                </ScrollArea>
+              </div>
+
+              <div>
+                <h3 className="text-lg font-medium">System Information</h3>
+                <div className="space-y-2 mt-2">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Database Status</span>
+                    <Badge variant="outline">Connected</Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Last Updated</span>
+                    <span>{new Date(settings.updated_at).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Environment</span>
+                    <Badge variant="outline">
+                      {import.meta.env.MODE === 'production' ? 'Production' : 'Development'}
+                    </Badge>
+                  </div>
+                </div>
               </div>
             </div>
           </Card>

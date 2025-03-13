@@ -104,37 +104,43 @@ const DashboardLayout = () => {
 
   const menuItems = [
     {
-      path: "/dashboard",
+      path: "/",
       label: "Dashboard",
       icon: "📊",
       color: "#4f46e5",
     },
     {
-      path: "/dashboard/clients",
+      path: "/clients",
       label: "Clients",
       icon: "👥",
       color: "#0891b2",
     },
     {
-      path: "/dashboard/payments",
+      path: "/payments",
       label: "Payments",
       icon: "💳",
       color: "#059669",
     },
     {
-      path: "/dashboard/reports",
+      path: "/reports",
       label: "Reports",
       icon: "📈",
       color: "#9333ea",
     },
     {
-      path: "/dashboard/expenses",
+      path: "/expenses",
       label: "Expenses",
       icon: "💰",
       color: "#e11d48",
     },
     {
-      path: "/dashboard/settings",
+      path: "/debt",
+      label: "Debt Management",
+      icon: "🔄",
+      color: "#0891b2",
+    },
+    {
+      path: "/settings",
       label: "Settings",
       icon: "⚙️",
       color: "#475569",

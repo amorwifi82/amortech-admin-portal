@@ -23,7 +23,7 @@ const LoginForm = () => {
         title: "Login successful",
         description: "Welcome back to Amortech WiFi Dashboard",
       });
-      navigate("/dashboard");
+      navigate("/");
     } else {
       toast({
         title: "Login failed",

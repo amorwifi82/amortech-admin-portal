@@ -62,27 +62,48 @@ const DebtManagementDialog = ({
         throw new Error("Please enter a valid amount");
       }
 
-      const { error } = await supabase
+      // Update client's debt amount
+      const { error: clientError } = await supabase
         .from("clients")
         .update({ 
           debt: amount 
         } as Partial<Client>)
         .eq("id", client.id);
 
-      if (error) throw error;
+      if (clientError) throw clientError;
 
-      // Store the debt reminder in messages table
+      // Create or update debt record
       if (amount > 0) {
-        const message = `Dear ${client.name}, this is a reminder that you have an outstanding balance of KES ${amount.toLocaleString()} for additional charges${debtReason ? ` (${debtReason})` : ''}. Please clear your payment.`;
+        const dueDate = new Date();
+        dueDate.setMonth(dueDate.getMonth() + 1);
+
+        const { error: debtError } = await supabase
+          .from("debts")
+          .upsert({
+            client_id: client.id,
+            amount: amount,
+            status: 'pending',
+            due_date: dueDate.toISOString().split('T')[0],
+            collected_amount: 0,
+            created_at: new Date().toISOString()
+          });
+
+        if (debtError) throw debtError;
+
+        // Store the debt reminder in messages table
+        const messageText = `Dear ${client.name}, this is a reminder that you have an outstanding balance of KES ${amount.toLocaleString()} for additional charges${debtReason ? ` (${debtReason})` : ''}. Please clear your payment.`;
         
-        await supabase
+        const { error: messageError } = await supabase
           .from("messages")
           .insert({
-            content: message,
-            sender_id: "system",
-            receiver_id: client.id,
-            type: "debt_reminder"
+            client_id: client.id,
+            message: messageText,
+            sent_at: new Date().toISOString(),
+            status: "sent",
+            created_at: new Date().toISOString()
           });
+
+        if (messageError) throw messageError;
       }
 
       toast({
