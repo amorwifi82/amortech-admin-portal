@@ -53,8 +53,21 @@ const DATA_RETENTION_OPTIONS = [
 ];
 
 // Version information
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "1.0.1";
 const CHANGELOG = [
+  {
+    version: "1.0.1",
+    date: "2024-03-21",
+    changes: [
+      "Enhanced debt management system with custom payment amounts",
+      "Added ability to move remaining debt to next subscription date",
+      "Improved upcoming payments view with ±5 days range",
+      "Added payment reminder functionality for overdue debts",
+      "Added test notification feature in settings",
+      "Updated client status tracking and management",
+      "Fixed issues with debt calculations and status updates"
+    ]
+  },
   {
     version: "1.0.0",
     date: "2024-03-19",
@@ -287,18 +300,53 @@ const Settings = () => {
   };
 
   const handleTestNotification = async () => {
-    setIsTestingNotification(true);
     try {
-      await checkAndNotifyClients();
+      setIsTestingNotification(true);
+      
+      // Get a test client for notifications
+      const { data: testClient, error: clientError } = await supabase
+        .from('clients')
+        .select('*')
+        .limit(1)
+        .single();
+
+      if (clientError) throw clientError;
+
+      if (!testClient) {
+        toast({
+          title: "No clients found",
+          description: "Please add at least one client to test notifications",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Create a test message
+      const testMessage = `This is a test notification from ${settings.company_name}. Your payment reminder system is working correctly.`;
+      
+      const { error: messageError } = await supabase
+        .from('messages')
+        .insert([{
+          client_id: testClient.id,
+          message: testMessage,
+          sent_at: new Date().toISOString(),
+          status: 'sent'
+        }]);
+
+      if (messageError) throw messageError;
+
+      // Trigger the notification service
+      await checkAndNotifyClients([testClient]);
+
       toast({
-        title: "Success",
-        description: "Test notification sent successfully",
+        title: "Test Notification Sent",
+        description: `A test message was sent to ${testClient.name}`,
       });
-    } catch (error) {
-      console.error("Error sending test notification:", error);
+    } catch (error: any) {
+      console.error('Error sending test notification:', error);
       toast({
         title: "Error",
-        description: "Failed to send test notification",
+        description: error.message || "Failed to send test notification",
         variant: "destructive",
       });
     } finally {
