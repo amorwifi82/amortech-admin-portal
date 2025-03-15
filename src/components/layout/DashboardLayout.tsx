@@ -39,7 +39,18 @@ const DashboardLayout = () => {
 
   // Auto logout functionality
   useEffect(() => {
-    const resetTimer = () => setLastActivity(Date.now());
+    // Check if user is authenticated
+    const isAuthenticated = localStorage.getItem("isAuthenticated");
+    if (!isAuthenticated) {
+      navigate("/login");
+      return;
+    }
+
+    const resetTimer = () => {
+      const now = Date.now();
+      setLastActivity(now);
+      localStorage.setItem("lastActivity", now.toString());
+    };
 
     // Add event listeners for user activity
     window.addEventListener('mousemove', resetTimer);
@@ -50,10 +61,15 @@ const DashboardLayout = () => {
     // Check for inactivity every minute
     const interval = setInterval(() => {
       const now = Date.now();
-      if (now - lastActivity >= LOGOUT_TIMER) {
+      const storedLastActivity = parseInt(localStorage.getItem("lastActivity") || now.toString());
+      
+      if (now - storedLastActivity >= LOGOUT_TIMER) {
         handleLogout();
       }
     }, 60000); // Check every minute
+
+    // Initial activity timestamp
+    resetTimer();
 
     return () => {
       window.removeEventListener('mousemove', resetTimer);
@@ -62,14 +78,25 @@ const DashboardLayout = () => {
       window.removeEventListener('scroll', resetTimer);
       clearInterval(interval);
     };
-  }, [lastActivity]);
+  }, []);
 
   const handleLogout = () => {
+    // Clear any stored user data
+    localStorage.removeItem("isAuthenticated");
+    localStorage.removeItem("lastActivity");
+    
+    // Show appropriate message based on whether this was manual logout or timeout
+    const isTimeout = Date.now() - lastActivity >= LOGOUT_TIMER;
     toast({
-      title: "Session expired",
-      description: "You have been logged out due to inactivity",
+      title: isTimeout ? "Session Expired" : "Logged Out",
+      description: isTimeout 
+        ? "You have been logged out due to inactivity" 
+        : "You have been successfully logged out",
+      variant: isTimeout ? "destructive" : "default",
     });
-    navigate("/");
+
+    // Navigate to login page
+    navigate("/login");
   };
 
   const getMenuItemStyles = (label: string) => {

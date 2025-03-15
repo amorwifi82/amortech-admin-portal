@@ -19,6 +19,10 @@ const LoginForm = () => {
 
     // Updated credentials as specified
     if (username === "Admin" && password === "Amor31/1987") {
+      // Set authentication state
+      localStorage.setItem("isAuthenticated", "true");
+      localStorage.setItem("lastActivity", Date.now().toString());
+
       toast({
         title: "Login successful",
         description: "Welcome back to Amortech WiFi Dashboard",

@@ -27,6 +27,7 @@ export interface Database {
           name: string
           phone_number: string
           amount_paid: number
+          debt: number
           due_date: string
           status: string
           created_at: string
@@ -37,6 +38,7 @@ export interface Database {
           name: string
           phone_number: string
           amount_paid?: number
+          debt?: number
           due_date: string
           status?: string
           created_at?: string
@@ -47,6 +49,7 @@ export interface Database {
           name?: string
           phone_number?: string
           amount_paid?: number
+          debt?: number
           due_date?: string
           status?: string
           created_at?: string

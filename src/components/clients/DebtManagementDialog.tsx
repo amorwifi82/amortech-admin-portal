@@ -32,7 +32,7 @@ const DebtManagementDialog = ({
   children
 }: DebtManagementDialogProps) => {
   const [loading, setLoading] = useState(false);
-  const [debtAmount, setDebtAmount] = useState(client.debt.toString());
+  const [debtAmount, setDebtAmount] = useState("");
   const [debtReason, setDebtReason] = useState("");
   const { toast } = useToast();
 
@@ -68,6 +68,7 @@ const DebtManagementDialog = ({
         const dueDate = new Date();
         dueDate.setMonth(dueDate.getMonth() + 1);
 
+        // Create new debt record
         const { data: debtData, error: debtError } = await supabase
           .from("debts")
           .insert({
@@ -88,19 +89,6 @@ const DebtManagementDialog = ({
 
         console.log('Created debt record:', debtData);
 
-        // Update client's debt amount
-        const { error: clientError } = await supabase
-          .from("clients")
-          .update({ 
-            debt: amount 
-          } as Partial<Client>)
-          .eq("id", client.id);
-
-        if (clientError) {
-          console.error('Error updating client:', clientError);
-          throw clientError;
-        }
-
         // Store the debt reminder in messages table
         const messageText = `Dear ${client.name}, this is a reminder that you have an outstanding balance of KES ${amount.toLocaleString()} for additional charges${debtReason ? ` (${debtReason})` : ''}. Please clear your payment.`;
         
@@ -118,6 +106,10 @@ const DebtManagementDialog = ({
           console.warn('Error creating message:', messageError);
           // Don't throw here as it's not critical
         }
+
+        // Reset form
+        setDebtAmount("");
+        setDebtReason("");
       }
 
       toast({
@@ -146,10 +138,21 @@ const DebtManagementDialog = ({
       const today = new Date();
       const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
       
+      // Get total outstanding debt
+      const { data: debts, error: debtsError } = await supabase
+        .from("debts")
+        .select("amount, collected_amount")
+        .eq("client_id", client.id)
+        .eq("status", "pending");
+
+      if (debtsError) throw debtsError;
+
+      const totalDebt = debts?.reduce((sum, debt) => sum + (debt.amount - (debt.collected_amount || 0)), 0) || 0;
+      
       let message = `Dear ${client.name}, `;
       
-      if (client.debt > 0) {
-        message += `you have an outstanding balance of KES ${client.debt.toLocaleString()} for additional charges. `;
+      if (totalDebt > 0) {
+        message += `you have an outstanding balance of KES ${totalDebt.toLocaleString()} for additional charges. `;
       }
       
       message += `Your internet subscription payment of KES ${client.amount_paid.toLocaleString()} is due in ${daysUntilDue} days (${dueDate.toLocaleDateString()}). `;
@@ -158,10 +161,11 @@ const DebtManagementDialog = ({
       const { error } = await supabase
         .from("messages")
         .insert({
-          content: message,
-          sender_id: "system",
-          receiver_id: client.id,
-          type: "payment_reminder"
+          client_id: client.id,
+          message: message,
+          sent_at: new Date().toISOString(),
+          status: "sent",
+          created_at: new Date().toISOString()
         });
 
       if (error) throw error;

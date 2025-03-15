@@ -23,9 +23,25 @@ import type { Database } from "@/lib/supabase";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
+import { Settings as SettingsIcon } from 'lucide-react';
+import { APP_VERSION } from '@/config/settings';
 
-type Settings = Database["public"]["Tables"]["settings"]["Row"];
-type SettingsInsert = Database["public"]["Tables"]["settings"]["Insert"];
+interface Settings {
+  id: string;
+  company_name: string;
+  company_logo: string;
+  company_email: string;
+  currency: string;
+  notification_enabled: boolean;
+  payment_reminder_days: number;
+  theme: 'light' | 'dark' | 'system';
+  language: string;
+  timezone: string;
+  data_retention_days: number;
+  version: string;
+  created_at: string;
+  updated_at: string;
+}
 
 const CURRENCIES = [
   { code: "KES", name: "Kenyan Shilling" },
@@ -53,7 +69,6 @@ const DATA_RETENTION_OPTIONS = [
 ];
 
 // Version information
-const APP_VERSION = "1.0.1";
 const CHANGELOG = [
   {
     version: "1.0.1",
@@ -84,25 +99,28 @@ const CHANGELOG = [
   }
 ];
 
+const defaultSettings: Settings = {
+  id: '',
+  company_name: 'Amortech',
+  company_logo: '',
+  company_email: 'info@amortech.co.ke',
+  currency: 'KES',
+  notification_enabled: true,
+  payment_reminder_days: 5,
+  theme: 'light',
+  language: 'en',
+  timezone: 'Africa/Nairobi',
+  data_retention_days: 365,
+  version: APP_VERSION,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString()
+};
+
 const Settings = () => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
-  const [settings, setSettings] = useState<Settings>({
-    id: "",
-    company_name: "",
-    company_logo: "",
-    company_email: "",
-    currency: "KES",
-    notification_enabled: true,
-    payment_reminder_days: 7,
-    theme: "system",
-    language: "en",
-    timezone: "Africa/Nairobi",
-    data_retention_days: 365,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  });
-
+  const [settings, setSettings] = useState<Settings>(defaultSettings);
+  const [isSaving, setIsSaving] = useState(false);
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -111,157 +129,102 @@ const Settings = () => {
   const [cloudProvider, setCloudProvider] = useState<"google" | "dropbox" | "none">("none");
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        setIsLoading(true);
-        
-        // First check if we have an authenticated session
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) {
-          console.error("Session error:", sessionError);
-          throw sessionError;
-        }
-
-        // Fetch settings with explicit columns
-        const { data: existingSettings, error } = await supabase
-          .from("settings")
-          .select(`
-            id,
-            company_name,
-            company_logo,
-            company_email,
-            currency,
-            notification_enabled,
-            payment_reminder_days,
-            theme,
-            language,
-            timezone,
-            data_retention_days,
-            created_at,
-            updated_at
-          `)
-          .single();
-
-        if (error) {
-          console.error("Fetch error:", error);
-          if (error.code === "PGRST116") {
-            // No settings found, create default settings
-            const initialSettings: SettingsInsert = {
-              company_name: "",
-              company_logo: "",
-              company_email: "",
-              currency: "KES",
-              notification_enabled: true,
-              payment_reminder_days: 7,
-              theme: "system",
-              language: "en",
-              timezone: "Africa/Nairobi",
-              data_retention_days: 365,
-            };
-
-            const { data: newSettings, error: insertError } = await supabase
-              .from("settings")
-              .insert([initialSettings])
-              .select()
-              .single();
-
-            if (insertError) {
-              console.error("Insert error:", insertError);
-              throw insertError;
-            }
-            
-            if (newSettings) {
-              setSettings(newSettings);
-              localStorage.setItem("companyName", newSettings.company_name);
-            }
-          } else {
-            throw error;
-          }
-        } else if (existingSettings) {
-          setSettings(existingSettings);
-          localStorage.setItem("companyName", existingSettings.company_name);
-        }
-      } catch (error) {
-        console.error("Error fetching settings:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load settings. Please check your connection and try again.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchSettings();
-  }, [toast]);
-
-  const handleChange = (
-    name: keyof Settings,
-    value: string | number | boolean
-  ) => {
-    setSettings((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSave = async () => {
+  const fetchSettings = async () => {
     try {
-      const { data: existingSettings, error: fetchError } = await supabase
-        .from("settings")
-        .select("id")
+      setIsLoading(true);
+
+      // First check if we have an authenticated session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        console.error("Session error:", sessionError);
+        throw sessionError;
+      }
+
+      if (!session) {
+        // Redirect to login if no session
+        window.location.href = '/auth/login';
+        return;
+      }
+
+      // Try to fetch existing settings
+      const { data: existingSettings, error } = await supabase
+        .from('settings')
+        .select('*')
         .single();
 
-      if (fetchError && fetchError.code !== "PGRST116") throw fetchError;
+      if (error) {
+        console.error("Fetch error:", error);
+        if (error.code === "PGRST116") {
+          // No settings found, create default settings
+          const { data: newSettings, error: insertError } = await supabase
+            .from('settings')
+            .insert([{
+              ...defaultSettings,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }])
+            .select()
+            .single();
 
-      const updatedSettings: SettingsInsert = {
-        company_name: settings.company_name,
-        company_logo: settings.company_logo,
-        company_email: settings.company_email,
-        currency: settings.currency,
-        notification_enabled: settings.notification_enabled,
-        payment_reminder_days: settings.payment_reminder_days,
-        theme: settings.theme,
-        language: settings.language,
-        timezone: settings.timezone,
-        data_retention_days: settings.data_retention_days,
-      };
+          if (insertError) {
+            console.error("Insert error:", insertError);
+            throw insertError;
+          }
 
-      let result;
-      if (existingSettings?.id) {
-        result = await supabase
-          .from("settings")
-          .update(updatedSettings)
-          .eq("id", existingSettings.id)
-          .select()
-          .single();
-      } else {
-        result = await supabase
-          .from("settings")
-          .insert([updatedSettings])
-          .select()
-          .single();
+          if (newSettings) {
+            setSettings(newSettings);
+          }
+        } else {
+          throw error;
+        }
+      } else if (existingSettings) {
+        setSettings(existingSettings);
       }
-
-      if (result.error) throw result.error;
-      if (result.data) {
-        setSettings(result.data);
-        localStorage.setItem("companyName", result.data.company_name);
-      }
-
+    } catch (error: any) {
+      console.error('Error fetching settings:', error);
       toast({
-        title: "Success",
-        description: "Settings saved successfully",
+        title: 'Error',
+        description: 'Failed to load settings. Please check your connection and try again.',
+        variant: 'destructive',
       });
-    } catch (error) {
-      console.error("Error saving settings:", error);
-      toast({
-        title: "Error",
-        description: "Failed to save settings",
-        variant: "destructive",
-      });
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  const saveSettings = async () => {
+    try {
+      setIsSaving(true);
+
+      const { error } = await supabase
+        .from('settings')
+        .upsert({
+          ...settings,
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: 'Settings saved successfully',
+      });
+    } catch (error: any) {
+      console.error('Error saving settings:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to save settings',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchSettings();
+  }, []);
 
   const handlePasswordChange = async () => {
     if (newPassword !== confirmPassword) {
@@ -330,13 +293,14 @@ const Settings = () => {
           client_id: testClient.id,
           message: testMessage,
           sent_at: new Date().toISOString(),
-          status: 'sent'
+          status: 'sent',
+          type: 'test'
         }]);
 
       if (messageError) throw messageError;
 
-      // Trigger the notification service
-      await checkAndNotifyClients([testClient]);
+      // Call notification service without arguments
+      await checkAndNotifyClients();
 
       toast({
         title: "Test Notification Sent",
@@ -525,8 +489,8 @@ const Settings = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
@@ -534,362 +498,189 @@ const Settings = () => {
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Settings</h1>
-        <Card className="p-4">
-          <div className="flex items-center gap-2">
-            <Info className="w-4 h-4" />
-            <p className="text-sm text-muted-foreground">Version {APP_VERSION}</p>
-          </div>
-        </Card>
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <SettingsIcon className="h-8 w-8 text-primary" />
+            Settings
+            <span className="text-xs text-muted-foreground ml-2">v{APP_VERSION}</span>
+          </h1>
+          <p className="text-muted-foreground mt-1">Configure your application settings</p>
         </div>
+      </div>
 
-      <Tabs defaultValue="general" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="notifications">Notifications</TabsTrigger>
-          <TabsTrigger value="security">Security</TabsTrigger>
-          <TabsTrigger value="backup">Backup & Restore</TabsTrigger>
-          <TabsTrigger value="about">About & Updates</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="general" className="space-y-4">
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold mb-4">Company Settings</h3>
+      <div className="grid gap-6 p-6 bg-card rounded-lg border">
         <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="company_name">Company Name</Label>
-                <Input
-                  id="company_name"
-                  value={settings.company_name}
-                  onChange={(e) => handleChange("company_name", e.target.value)}
-                  placeholder="Enter your company name"
-            />
-          </div>
+          <h2 className="text-xl font-semibold">Company Information</h2>
+          
+          <div className="grid gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="company_name">Company Name</Label>
+              <Input
+                id="company_name"
+                value={settings.company_name}
+                onChange={(e) => setSettings(prev => ({ ...prev, company_name: e.target.value }))}
+              />
+            </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="company_email">Company Email</Label>
-                <Input
-                  id="company_email"
-                  type="email"
-                  value={settings.company_email}
-                  onChange={(e) => handleChange("company_email", e.target.value)}
-                  placeholder="Enter your company email"
-                />
+            <div className="space-y-2">
+              <Label htmlFor="company_email">Company Email</Label>
+              <Input
+                id="company_email"
+                type="email"
+                value={settings.company_email}
+                onChange={(e) => setSettings(prev => ({ ...prev, company_email: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="company_logo">Company Logo URL</Label>
+            <Input
+                id="company_logo"
+                value={settings.company_logo}
+                onChange={(e) => setSettings(prev => ({ ...prev, company_logo: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="currency">Currency</Label>
+              <Select
+                value={settings.currency}
+                onValueChange={(value) => setSettings(prev => ({ ...prev, currency: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select currency" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="KES">KES - Kenyan Shilling</SelectItem>
+                  <SelectItem value="USD">USD - US Dollar</SelectItem>
+                  <SelectItem value="EUR">EUR - Euro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="company_logo">Company Logo URL</Label>
-                <Input
-                  id="company_logo"
-                  value={settings.company_logo}
-                  onChange={(e) => handleChange("company_logo", e.target.value)}
-                  placeholder="Enter your company logo URL"
-                />
-              </div>
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold">Notifications</h2>
+          
+          <div className="grid gap-4">
+          <div className="flex items-center justify-between">
+              <Label htmlFor="notifications">Enable Notifications</Label>
+            <Switch
+              id="notifications"
+                checked={settings.notification_enabled}
+                onCheckedChange={(checked) => setSettings(prev => ({ ...prev, notification_enabled: checked }))}
+              />
+            </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="currency">Currency</Label>
-                <Select
-                  value={settings.currency}
-                  onValueChange={(value) => handleChange("currency", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select currency" />
+            <div className="space-y-2">
+              <Label htmlFor="reminder_days">Payment Reminder Days</Label>
+              <Input
+                id="reminder_days"
+                type="number"
+                value={settings.payment_reminder_days}
+                onChange={(e) => setSettings(prev => ({ ...prev, payment_reminder_days: parseInt(e.target.value) || 0 }))}
+              />
+            </div>
+
+            <Button
+              variant="outline"
+              onClick={handleTestNotification}
+              disabled={isTestingNotification || !settings.notification_enabled}
+            >
+              <Bell className="mr-2 h-4 w-4" />
+              {isTestingNotification ? "Sending..." : "Test Notifications"}
+            </Button>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold">Preferences</h2>
+          
+          <div className="grid gap-4">
+            <div className="space-y-2">
+            <Label htmlFor="theme">Theme</Label>
+              <Select
+                value={settings.theme}
+                onValueChange={(value) => setSettings(prev => ({ ...prev, theme: value as Settings['theme'] }))}
+              >
+                <SelectTrigger>
+                <SelectValue placeholder="Select theme" />
               </SelectTrigger>
               <SelectContent>
-                    {CURRENCIES.map((currency) => (
-                      <SelectItem key={currency.code} value={currency.code}>
-                        {currency.name} ({currency.code})
-                      </SelectItem>
-                    ))}
+                <SelectItem value="light">Light</SelectItem>
+                <SelectItem value="dark">Dark</SelectItem>
+                <SelectItem value="system">System</SelectItem>
               </SelectContent>
             </Select>
           </div>
-        </div>
-          </Card>
-        </TabsContent>
 
-        <TabsContent value="notifications" className="space-y-4">
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold mb-4">Notification Settings</h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Enable Notifications</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Receive notifications for important events
-                  </p>
-                </div>
-                <Switch
-                  checked={settings.notification_enabled}
-                  onCheckedChange={(checked) =>
-                    handleChange("notification_enabled", checked)
-                  }
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="payment_reminder_days">
-                  Payment Reminder Days
-                </Label>
-                <Input
-                  id="payment_reminder_days"
-                  type="number"
-                  min="1"
-                  max="30"
-                  value={settings.payment_reminder_days}
-                  onChange={(e) =>
-                    handleChange("payment_reminder_days", parseInt(e.target.value))
-                  }
-                />
-                <p className="text-sm text-muted-foreground">
-                  Number of days before payment due date to send reminders
-                </p>
-              </div>
-
-              <Button
-                variant="outline"
-                onClick={handleTestNotification}
-                disabled={isTestingNotification || !settings.notification_enabled}
+            <div className="space-y-2">
+              <Label htmlFor="language">Language</Label>
+              <Select
+                value={settings.language}
+                onValueChange={(value) => setSettings(prev => ({ ...prev, language: value }))}
               >
-                <Bell className="mr-2 h-4 w-4" />
-                {isTestingNotification ? "Sending..." : "Test Notifications"}
-              </Button>
-            </div>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="security" className="space-y-4">
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold mb-4">Security Settings</h3>
-        <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="old_password">Current Password</Label>
-                <Input
-                  id="old_password"
-                  type="password"
-                  value={oldPassword}
-                  onChange={(e) => setOldPassword(e.target.value)}
-                  placeholder="Enter your current password"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="new_password">New Password</Label>
-            <Input
-                  id="new_password"
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Enter your new password"
-            />
-          </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="confirm_password">Confirm New Password</Label>
-                <Input
-                  id="confirm_password"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm your new password"
-                />
+                <SelectTrigger>
+                  <SelectValue placeholder="Select language" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="en">English</SelectItem>
+                  <SelectItem value="sw">Swahili</SelectItem>
+                </SelectContent>
+              </Select>
         </div>
 
-              <Button
-                onClick={handlePasswordChange}
-                disabled={!oldPassword || !newPassword || !confirmPassword}
+            <div className="space-y-2">
+              <Label htmlFor="timezone">Timezone</Label>
+              <Select
+                value={settings.timezone}
+                onValueChange={(value) => setSettings(prev => ({ ...prev, timezone: value }))}
               >
-                <Shield className="mr-2 h-4 w-4" />
-                Change Password
-              </Button>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select timezone" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Africa/Nairobi">Nairobi</SelectItem>
+                  <SelectItem value="UTC">UTC</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="backup" className="space-y-4">
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold mb-4">Data Management</h3>
-        <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="data_retention">Data Retention Period</Label>
-                <Select
-                  value={settings.data_retention_days.toString()}
-                  onValueChange={(value) =>
-                    handleChange("data_retention_days", parseInt(value))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select retention period" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DATA_RETENTION_OPTIONS.map((option) => (
-                      <SelectItem
-                        key={option.days}
-                        value={option.days.toString()}
-                      >
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-sm text-muted-foreground">
-                  How long to keep historical data
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Backup and Restore</Label>
-                <div className="flex flex-col space-y-4">
-                  <div className="flex space-x-4">
-                    <Button variant="outline" onClick={handleBackupData}>
-                      <Download className="mr-2 h-4 w-4" />
-                      Download Backup
-                    </Button>
-
-                    <div className="relative">
-                      <input
-                        type="file"
-                        accept=".json"
-                        onChange={handleRestoreBackup}
-                        className="hidden"
-                        ref={fileInputRef}
-                        disabled={isRestoring}
-                      />
-                      <Button
-                        variant="outline"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isRestoring}
-                      >
-                        <Upload className="mr-2 h-4 w-4" />
-                        {isRestoring ? "Restoring..." : "Restore Backup"}
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Cloud Backup</Label>
-                    <div className="flex space-x-4">
-                      <Button
-                        variant="outline"
-                        onClick={() => handleCloudBackup("google")}
-                      >
-                        <Cloud className="mr-2 h-4 w-4" />
-                        Backup to Google Drive
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => handleCloudBackup("dropbox")}
-                      >
-                        <Cloud className="mr-2 h-4 w-4" />
-                        Backup to Dropbox
-                      </Button>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Securely store your backups in the cloud
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <Separator className="my-4" />
-
-              <div className="space-y-2">
-                <Label>Danger Zone</Label>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                    <Button variant="destructive">
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Clear Database
-                    </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                        This action cannot be undone. This will permanently delete
-                        all client data from the database.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleClearDatabase}>
-                    Continue
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-              </div>
-            </div>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="about" className="space-y-6">
-          <Card className="p-6">
-            <h2 className="text-2xl font-semibold mb-4">About Amortech Admin Portal</h2>
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-lg font-medium">Current Version</h3>
-                <p className="text-muted-foreground">v{APP_VERSION}</p>
-              </div>
-              
-              <div>
-                <h3 className="text-lg font-medium mb-2">Changelog</h3>
-                <ScrollArea className="h-[400px] rounded-md border p-4">
-                  <Accordion type="single" collapsible className="w-full">
-                    {CHANGELOG.map((release) => (
-                      <AccordionItem key={release.version} value={release.version}>
-                        <AccordionTrigger>
-                          <div className="flex items-center gap-4">
-                            <span className="font-semibold">Version {release.version}</span>
-                            <span className="text-sm text-muted-foreground">
-                              {new Date(release.date).toLocaleDateString()}
-                            </span>
-                          </div>
-                        </AccordionTrigger>
-                        <AccordionContent>
-                          <ul className="list-disc list-inside space-y-2">
-                            {release.changes.map((change, index) => (
-                              <li key={index} className="text-muted-foreground">
-                                {change}
-                              </li>
-                            ))}
-                          </ul>
-                        </AccordionContent>
-                      </AccordionItem>
-                    ))}
-                  </Accordion>
-                </ScrollArea>
-              </div>
-
-              <div>
-                <h3 className="text-lg font-medium">System Information</h3>
-                <div className="space-y-2 mt-2">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Database Status</span>
-                    <Badge variant="outline">Connected</Badge>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Last Updated</span>
-                    <span>{new Date(settings.updated_at).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Environment</span>
-                    <Badge variant="outline">
-                      {import.meta.env.MODE === 'production' ? 'Production' : 'Development'}
-                    </Badge>
-                  </div>
-                </div>
           </div>
         </div>
-      </Card>
-        </TabsContent>
-      </Tabs>
 
-      <Separator />
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold">System</h2>
+          
+          <div className="grid gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="data_retention">Data Retention (days)</Label>
+              <Input
+                id="data_retention"
+                type="number"
+                value={settings.data_retention_days}
+                onChange={(e) => setSettings(prev => ({ ...prev, data_retention_days: parseInt(e.target.value) || 365 }))}
+              />
+            </div>
 
-      <div className="flex justify-end">
-        <Button onClick={handleSave}>Save Changes</Button>
+            <div className="space-y-2">
+              <Label>Version Information</Label>
+              <div className="text-sm text-muted-foreground">
+                <p>Version: {settings.version}</p>
+                <p>Last Updated: {new Date(settings.updated_at).toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <Button
+            onClick={saveSettings}
+            disabled={isSaving}
+          >
+            {isSaving ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </div>
       </div>
     </div>
   );

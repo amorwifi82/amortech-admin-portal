@@ -24,13 +24,14 @@ export const supabase = createClient<Database>(
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: true,
-      flowType: 'pkce'
+      flowType: 'pkce',
+      storage: window.localStorage,
+      storageKey: 'supabase.auth.token',
     },
     global: {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'Access-Control-Allow-Origin': '*'
       }
     },
     db: {
@@ -48,7 +49,25 @@ export const supabase = createClient<Database>(
 supabase.auth.onAuthStateChange((event, session) => {
   if (event === 'SIGNED_OUT') {
     console.log('User signed out');
+    // Clear any cached data
+    window.localStorage.removeItem('supabase.auth.token');
+    if (!window.location.pathname.includes('/auth/')) {
+      window.location.href = '/auth/login';
+    }
   } else if (event === 'SIGNED_IN') {
     console.log('User signed in:', session?.user?.email);
+  } else if (event === 'TOKEN_REFRESHED') {
+    console.log('Session token refreshed');
+  }
+});
+
+// Check initial session without automatic redirect
+supabase.auth.getSession().then(({ data: { session }, error }) => {
+  if (error) {
+    console.error('Error checking session:', error.message);
+  } else if (!session) {
+    console.log('No active session');
+  } else {
+    console.log('Active session found for:', session.user.email);
   }
 });
