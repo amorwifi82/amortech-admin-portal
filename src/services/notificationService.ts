@@ -40,11 +40,14 @@ export const sendNotification = async (client: Client) => {
     const today = new Date();
     const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
+    // Convert suspended status to overdue for message selection
+    const status = client.status === "Suspended" ? "Overdue" as ClientStatus : client.status;
+
     if (client.debt > 0) {
       message = WHATSAPP_MESSAGE_TEMPLATES.debt(client);
-    } else if (client.status === "Overdue") {
+    } else if (status === "Overdue") {
       message = WHATSAPP_MESSAGE_TEMPLATES.overdue(client);
-    } else if (client.status === "Pending") {
+    } else if (status === "Pending") {
       message = WHATSAPP_MESSAGE_TEMPLATES.pending(client);
     }
 
@@ -91,13 +94,14 @@ export const checkAndNotifyClients = async () => {
     const { data: clients, error } = await supabase
       .from("clients")
       .select("*")
-      .or(`status.eq.Pending,status.eq.Overdue,debt.gt.0`);
+      .or(`status.eq.Pending,status.eq.Overdue,status.eq.Suspended,debt.gt.0`);
 
     if (error) throw error;
 
     const typedClients = (clients || []).map(client => ({
       ...client,
-      status: client.status as ClientStatus,
+      // Treat Suspended status as Overdue
+      status: client.status === "Suspended" ? "Overdue" as ClientStatus : client.status as ClientStatus,
       debt: client.debt || 0
     })) as Client[];
 
@@ -108,7 +112,7 @@ export const checkAndNotifyClients = async () => {
       
       return (
         (client.debt || 0) > 0 || // Always send reminders for clients with debt
-        client.status === "Overdue" || // Always send reminders for overdue clients
+        client.status === "Overdue" || // Always send reminders for overdue/suspended clients
         isToday(reminderDate) || // Send reminder X days before due date
         isBefore(dueDate, now) // Send reminder for overdue payments
       );

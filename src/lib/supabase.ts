@@ -225,7 +225,7 @@ export interface Database {
   }
 }
 
-export type ClientStatus = "Pending" | "Paid" | "Overdue";
+export type ClientStatus = "Pending" | "Paid" | "Overdue" | "Suspended";
 
 export interface Client {
   id: string;
