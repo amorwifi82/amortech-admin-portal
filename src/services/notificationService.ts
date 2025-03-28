@@ -9,14 +9,14 @@ Dear ${client.name},
 
 This is a friendly reminder that your WiFi payment of KES ${client.amount_paid} is due on ${new Date(client.due_date).toLocaleDateString()}. 
 
-Please make your payment via Mpesa Paybill 522533 Account 7831501 to avoid any service interruption.
+Please make your payment via Mpesa Paybill 522533 Account 7831501 to avoid service interruption.
 
 Thank you for choosing our services!
 `,
-  suspended: (client: Client) => `
+  overdue: (client: Client) => `
 Dear ${client.name},
 
-Your WiFi service has been suspended due to an overdue payment of KES ${client.amount_paid}. 
+Your WiFi service is currently overdue. The payment of KES ${client.amount_paid} was due on ${new Date(client.due_date).toLocaleDateString()}. 
 
 Please make your payment via Mpesa Paybill 522533 Account 7831501 to restore your service.
 
@@ -35,35 +35,39 @@ Thank you for your attention to this matter.
 
 export const sendNotification = async (client: Client) => {
   try {
-    let messageContent: string;
-    
+    let message = "";
+    const dueDate = new Date(client.due_date);
+    const today = new Date();
+    const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
     if (client.debt > 0) {
-      messageContent = WHATSAPP_MESSAGE_TEMPLATES.debt(client);
-    } else if (client.status === "Suspended") {
-      messageContent = WHATSAPP_MESSAGE_TEMPLATES.suspended(client);
-    } else {
-      messageContent = WHATSAPP_MESSAGE_TEMPLATES.pending(client);
+      message = WHATSAPP_MESSAGE_TEMPLATES.debt(client);
+    } else if (client.status === "Overdue") {
+      message = WHATSAPP_MESSAGE_TEMPLATES.overdue(client);
+    } else if (client.status === "Pending") {
+      message = WHATSAPP_MESSAGE_TEMPLATES.pending(client);
     }
 
-    const messageData = {
-      client_id: client.id,
-      message: messageContent,
-      status: client.debt > 0 ? "debt_reminder" : "payment_reminder",
-      sent_at: new Date().toISOString()
-    };
+    if (message) {
+      const phoneNumber = client.phone_number.replace(/\D/g, "");
+      window.open(`https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`, "_blank");
 
-    const { error } = await supabase
-      .from("messages")
-      .insert([messageData]);
+      // Record the message in the database
+      const { error } = await supabase
+        .from("messages")
+        .insert({
+          client_id: client.id,
+          message: message,
+          sent_at: new Date().toISOString(),
+          status: "sent",
+          created_at: new Date().toISOString(),
+          type: "whatsapp"
+        });
 
-    if (error) throw error;
-
-    console.log("Notification sent to:", client.name, "via", client.phone_number);
-
-    return true;
+      if (error) throw error;
+    }
   } catch (error) {
     console.error("Error sending notification:", error);
-    return false;
   }
 };
 
@@ -87,7 +91,7 @@ export const checkAndNotifyClients = async () => {
     const { data: clients, error } = await supabase
       .from("clients")
       .select("*")
-      .or(`status.eq.Pending,status.eq.Suspended,debt.gt.0`);
+      .or(`status.eq.Pending,status.eq.Overdue,debt.gt.0`);
 
     if (error) throw error;
 
@@ -104,11 +108,9 @@ export const checkAndNotifyClients = async () => {
       
       return (
         (client.debt || 0) > 0 || // Always send reminders for clients with debt
-        client.status === "Suspended" || // Always send reminders for suspended clients
-        isToday(reminderDate) || // Send reminder X days before due date
-        isBefore(dueDate, now) || // Send reminder for overdue payments
         client.status === "Overdue" || // Always send reminders for overdue clients
-        client.status === "Suspended" // Always send reminders for suspended clients
+        isToday(reminderDate) || // Send reminder X days before due date
+        isBefore(dueDate, now) // Send reminder for overdue payments
       );
     });
 
