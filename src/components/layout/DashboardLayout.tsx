@@ -42,7 +42,7 @@ const DashboardLayout = () => {
     // Check if user is authenticated
     const isAuthenticated = localStorage.getItem("isAuthenticated");
     if (!isAuthenticated) {
-      navigate("/login");
+      navigate("/auth/login", { replace: true });
       return;
     }
 
@@ -95,8 +95,8 @@ const DashboardLayout = () => {
       variant: isTimeout ? "destructive" : "default",
     });
 
-    // Navigate to login page
-    navigate("/login");
+    // Navigate to login page with replace to prevent back navigation
+    navigate("/auth/login", { replace: true });
   };
 
   const getMenuItemStyles = (label: string) => {

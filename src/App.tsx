@@ -15,6 +15,12 @@ import DebtPage from "./pages/Debt";
 
 const queryClient = new QueryClient();
 
+// Auth guard component
+const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
+  const isAuthenticated = localStorage.getItem("isAuthenticated") === "true";
+  return isAuthenticated ? <>{children}</> : <Navigate to="/auth/login" replace />;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -22,8 +28,16 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/login" element={<LoginForm />} />
-          <Route path="/" element={<DashboardLayout />}>
+          {/* Auth routes */}
+          <Route path="/auth/login" element={<LoginForm />} />
+          <Route path="/login" element={<Navigate to="/auth/login" replace />} />
+          
+          {/* Protected routes */}
+          <Route path="/" element={
+            <PrivateRoute>
+              <DashboardLayout />
+            </PrivateRoute>
+          }>
             <Route index element={<Dashboard />} />
             <Route path="clients" element={<Clients />} />
             <Route path="payments" element={<Payments />} />
@@ -32,7 +46,9 @@ const App = () => (
             <Route path="reports" element={<Reports />} />
             <Route path="settings" element={<Settings />} />
           </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
+
+          {/* Catch all route */}
+          <Route path="*" element={<Navigate to="/auth/login" replace />} />
         </Routes>
       </BrowserRouter>
     </TooltipProvider>
