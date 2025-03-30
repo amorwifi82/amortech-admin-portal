@@ -62,6 +62,7 @@ type Debt = {
   collected_amount: number;
   due_date: string;
   created_at: string;
+  reason: string;
   client: {
     id: string;
     name: string;
@@ -99,7 +100,8 @@ const DebtPage = () => {
     clientName: '',
     phoneNumber: '',
     amount: '',
-    dueDate: ''
+    dueDate: '',
+    reason: ''
   });
   const [paymentAmount, setPaymentAmount] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -114,6 +116,8 @@ const DebtPage = () => {
   const navigate = useNavigate();
   const [existingClients, setExistingClients] = useState<Client[]>([]);
   const [isNewClient, setIsNewClient] = useState(false);
+  const [showFailedReminderDialog, setShowFailedReminderDialog] = useState(false);
+  const [failedReminderClient, setFailedReminderClient] = useState<{ id: string; phone: string; message: string } | null>(null);
 
   const checkAuth = async () => {
     try {
@@ -211,6 +215,7 @@ const DebtPage = () => {
           collected_amount: 0,
           due_date: client.due_date,
           created_at: client.created_at,
+          reason: '',
           client: {
             id: client.id,
             name: client.name,
@@ -269,8 +274,10 @@ const DebtPage = () => {
           message: messageText,
           sent_at: new Date().toISOString(),
           status: "sent",
-          type: "payment_reminder",
-          created_at: new Date().toISOString()
+          type: "payment_confirmation",
+          amount_paid: debt.amount,
+          created_at: new Date().toISOString(),
+          user_id: session?.user?.id
         });
 
       if (messageError) {
@@ -282,7 +289,7 @@ const DebtPage = () => {
         description: 'Debt marked as paid',
       });
 
-      // Update local state to show paid status instead of removing
+      // Update local state
       setDebts(prevDebts => 
         prevDebts.map(d => 
           d.id === debtId 
@@ -290,6 +297,13 @@ const DebtPage = () => {
             : d
         )
       );
+
+      // Update total collected and collection rate
+      const newTotalCollected = totalCollected + debt.amount;
+      const newCollectionRate = ((newTotalCollected) / (totalDebt + newTotalCollected)) * 100;
+
+      // Refresh the debts list
+      fetchDebts();
     } catch (error: any) {
       console.error('Error updating debt:', error);
       toast({
@@ -366,13 +380,28 @@ const DebtPage = () => {
           message: messageText,
           sent_at: new Date().toISOString(),
           status: "sent",
-          type: "payment_reminder",
+          type: "payment_confirmation",
+          amount_paid: amount,
           created_at: new Date().toISOString()
         });
 
       if (messageError) {
         console.warn('Error creating message:', messageError);
       }
+
+      // Update local state
+      setDebts(prevDebts => 
+        prevDebts.map(d => 
+          d.id === paymentDialog.debtId 
+            ? { 
+                ...d, 
+                status: remainingAmount > 0 ? 'partially_paid' : 'paid',
+                collected_amount: (d.collected_amount || 0) + amount,
+                amount: remainingAmount
+              }
+            : d
+        )
+      );
 
       toast({
         title: 'Success',
@@ -382,7 +411,9 @@ const DebtPage = () => {
       });
 
       handleClosePaymentDialog();
-      fetchDebts(); // Refresh the debts list
+      
+      // Refresh the debts list
+      fetchDebts();
     } catch (error: any) {
       console.error('Error processing payment:', error);
       toast({
@@ -430,22 +461,46 @@ const DebtPage = () => {
     try {
       setSendingReminder(true);
       
+      // Get client's phone number
+      const { data: client, error: clientError } = await supabase
+        .from('clients')
+        .select('phone_number')
+        .eq('id', clientId)
+        .single();
+
+      if (clientError) throw clientError;
+
+      // Try to send via WhatsApp first
+      const phoneNumber = client.phone_number.replace(/\D/g, "");
+      window.open(`https://wa.me/${phoneNumber}?text=${encodeURIComponent(reminderMessage)}`, "_blank");
+
+      // Record the message in the database
       const { error } = await supabase
         .from('messages')
         .insert({
           client_id: clientId,
           message: reminderMessage,
-          status: 'pending',
-          type: "payment_reminder",
+          status: 'sent',
+          type: "whatsapp",
           sent_at: new Date().toISOString(),
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          user_id: session?.user?.id
         });
 
-      if (error) throw error;
+      if (error) {
+        // If database recording fails, show confirmation dialog
+        setFailedReminderClient({
+          id: clientId,
+          phone: phoneNumber,
+          message: reminderMessage
+        });
+        setShowFailedReminderDialog(true);
+        throw error;
+      }
 
       toast({
         title: 'Success',
-        description: 'Payment reminder has been scheduled',
+        description: 'Payment reminder has been sent',
       });
 
       setReminderMessage('');
@@ -454,11 +509,46 @@ const DebtPage = () => {
       console.error('Error sending reminder:', error);
       toast({
         title: 'Error',
-        description: 'Failed to send reminder',
+        description: 'Failed to record reminder in database',
         variant: 'destructive',
       });
     } finally {
       setSendingReminder(false);
+    }
+  };
+
+  const handleRetryReminder = async () => {
+    if (!failedReminderClient) return;
+
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .insert({
+          client_id: failedReminderClient.id,
+          message: failedReminderClient.message,
+          status: 'sent',
+          type: "whatsapp",
+          sent_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          user_id: session?.user?.id
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: 'Reminder recorded successfully',
+      });
+    } catch (error: any) {
+      console.error('Error recording reminder:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to record reminder',
+        variant: 'destructive',
+      });
+    } finally {
+      setShowFailedReminderDialog(false);
+      setFailedReminderClient(null);
     }
   };
 
@@ -501,7 +591,7 @@ const DebtPage = () => {
         return;
       }
 
-      if (!newDebt.amount || !newDebt.dueDate) {
+      if (!newDebt.amount || !newDebt.dueDate || !newDebt.reason) {
         toast({
           title: 'Error',
           description: 'Please fill in all required fields',
@@ -590,7 +680,8 @@ const DebtPage = () => {
       clientName: '',
       phoneNumber: '',
       amount: '',
-      dueDate: ''
+      dueDate: '',
+      reason: ''
     });
     setSelectedClientId(null);
     setIsNewClient(false);
@@ -636,20 +727,19 @@ const DebtPage = () => {
   );
 
   const totalDebt = debts
-    .filter((debt) => debt.status !== 'paid')
-    .reduce((sum, debt) => sum + debt.amount, 0);
+    .filter(debt => debt.status !== 'paid')
+    .reduce((sum, debt) => sum + (debt.amount - (debt.collected_amount || 0)), 0);
 
   const totalCollected = debts
-    .filter((debt) => debt.status === 'paid')
-    .reduce((sum, debt) => sum + debt.amount, 0);
+    .reduce((sum, debt) => sum + (debt.collected_amount || 0), 0);
 
   const pendingDebts = debts.filter(debt => debt.status === 'pending');
   const partiallyPaidDebts = debts.filter(debt => debt.status === 'partially_paid');
   const paidDebts = debts.filter(debt => debt.status === 'paid');
 
-  const collectionRate = totalDebt > 0 
+  const collectionRate = totalDebt + totalCollected > 0 
     ? (totalCollected / (totalDebt + totalCollected)) * 100 
-    : 100;
+    : 0;
 
   const getStatusEmoji = (status: Debt['status']) => {
     switch (status) {
@@ -785,6 +875,7 @@ const DebtPage = () => {
                       <TableHead>Due Date</TableHead>
                       <TableHead>Payment Status</TableHead>
                       <TableHead>Notifications</TableHead>
+                      <TableHead>Reason</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -857,6 +948,7 @@ const DebtPage = () => {
                                 {debt.status.replace('_', ' ')}
                               </Badge>
                             </TableCell>
+                            <TableCell>{debt.reason}</TableCell>
                             <TableCell>
                               <div className="flex space-x-2">
                                 <Button
@@ -1288,6 +1380,15 @@ const DebtPage = () => {
                   min={new Date().toISOString().split('T')[0]}
                 />
               </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Reason for Debt</label>
+                <Textarea
+                  placeholder="Enter reason for the debt..."
+                  value={newDebt.reason}
+                  onChange={(e) => setNewDebt(prev => ({ ...prev, reason: e.target.value }))}
+                  rows={3}
+                />
+              </div>
             </div>
           </div>
           <DialogFooter>
@@ -1312,6 +1413,33 @@ const DebtPage = () => {
             >
               {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Record Debt
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog 
+        open={showFailedReminderDialog} 
+        onOpenChange={setShowFailedReminderDialog}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Failed to Record Reminder</DialogTitle>
+            <DialogDescription>
+              The message was sent to the client's WhatsApp but failed to record in the database. Would you like to retry recording the reminder?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowFailedReminderDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleRetryReminder}
+            >
+              Retry Recording
             </Button>
           </DialogFooter>
         </DialogContent>
