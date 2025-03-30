@@ -216,6 +216,39 @@ const Clients = () => {
         nextDueDate.setDate(targetDay);
         
         updates.due_date = nextDueDate.toISOString().split('T')[0];
+        
+        // Get current client's debt
+        const { data: client, error: fetchError } = await supabase
+          .from("clients")
+          .select("debt")
+          .eq("id", clientId)
+          .single();
+
+        if (fetchError) throw fetchError;
+
+        // If client has debt, record it as paid
+        if (client.debt > 0) {
+          // Store payment record in messages
+          const messageText = `Full payment of KES ${client.debt.toLocaleString()} received. Debt fully paid.`;
+          
+          const { error: messageError } = await supabase
+            .from("messages")
+            .insert({
+              client_id: clientId,
+              message: messageText,
+              sent_at: new Date().toISOString(),
+              status: "sent",
+              type: "payment_reminder",
+              created_at: new Date().toISOString()
+            });
+
+          if (messageError) {
+            console.warn('Error creating message:', messageError);
+          }
+
+          // Reset debt to 0
+          updates.debt = 0;
+        }
       }
 
       updates.status = newStatus;

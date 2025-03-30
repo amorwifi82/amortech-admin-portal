@@ -1,6 +1,9 @@
 -- Add debt column to clients table
 ALTER TABLE clients ADD COLUMN IF NOT EXISTS debt DECIMAL(10,2) DEFAULT 0;
 
+-- Add status column if it doesn't exist
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'Pending';
+
 -- Update status enum
 ALTER TABLE clients 
   DROP CONSTRAINT IF EXISTS clients_status_check;
@@ -24,20 +27,41 @@ CREATE TABLE IF NOT EXISTS debts (
 -- Enable RLS
 ALTER TABLE debts ENABLE ROW LEVEL SECURITY;
 
--- Create policies for debts table
-CREATE POLICY "Enable all operations for authenticated users"
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Enable all operations for authenticated users" ON debts;
+DROP POLICY IF EXISTS "Enable read access for all users" ON debts;
+
+-- Create specific policies for debts table
+CREATE POLICY "Enable insert for all users"
 ON debts
-FOR ALL
-TO authenticated
-USING (true)
+FOR INSERT
+TO PUBLIC
 WITH CHECK (true);
 
--- Create policy for public access (if needed)
-CREATE POLICY "Enable read access for all users"
+CREATE POLICY "Enable select for all users"
 ON debts
 FOR SELECT
 TO PUBLIC
 USING (true);
+
+CREATE POLICY "Enable update for all users"
+ON debts
+FOR UPDATE
+TO PUBLIC
+USING (true)
+WITH CHECK (true);
+
+CREATE POLICY "Enable delete for all users"
+ON debts
+FOR DELETE
+TO PUBLIC
+USING (true);
+
+-- Grant necessary permissions
+GRANT ALL ON debts TO anon;
+GRANT ALL ON debts TO authenticated;
+GRANT USAGE ON SCHEMA public TO anon;
+GRANT USAGE ON SCHEMA public TO authenticated;
 
 -- Create trigger for updated_at
 CREATE OR REPLACE FUNCTION public.handle_updated_at()

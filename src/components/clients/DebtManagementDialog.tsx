@@ -62,32 +62,32 @@ const DebtManagementDialog = ({
         throw new Error("Please enter a valid amount");
       }
 
-      // Create or update debt record first
+      // Update client's debt amount
       if (amount > 0) {
-        console.log('Creating new debt record...');
-        const dueDate = new Date();
-        dueDate.setMonth(dueDate.getMonth() + 1);
-
-        // Create new debt record
-        const { data: debtData, error: debtError } = await supabase
-          .from("debts")
-          .insert({
-            client_id: client.id,
-            amount: amount,
-            status: 'pending',
-            due_date: dueDate.toISOString().split('T')[0],
-            collected_amount: 0,
-            created_at: new Date().toISOString()
-          })
-          .select('*')
+        console.log('Updating client debt...');
+        
+        // Get current client's debt
+        const { data: currentClient, error: fetchError } = await supabase
+          .from('clients')
+          .select('debt')
+          .eq('id', client.id)
           .single();
 
-        if (debtError) {
-          console.error('Error creating debt:', debtError);
-          throw debtError;
-        }
+        if (fetchError) throw fetchError;
 
-        console.log('Created debt record:', debtData);
+        // Calculate new total debt
+        const newTotalDebt = (currentClient.debt || 0) + amount;
+
+        // Update client's debt
+        const { error: updateError } = await supabase
+          .from('clients')
+          .update({ 
+            debt: newTotalDebt,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', client.id);
+
+        if (updateError) throw updateError;
 
         // Store the debt reminder in messages table
         const messageText = `Dear ${client.name}, this is a reminder that you have an outstanding balance of KES ${amount.toLocaleString()} for additional charges${debtReason ? ` (${debtReason})` : ''}. Please clear your payment.`;

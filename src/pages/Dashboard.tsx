@@ -89,9 +89,10 @@ const Dashboard = () => {
           paid: acc.paid + (client.status === 'Paid' ? 1 : 0),
           pending: acc.pending + (client.status === 'Pending' ? 1 : 0),
           overdue: acc.overdue + (client.status === 'Overdue' ? 1 : 0),
+          suspended: acc.suspended + (client.status === 'Suspended' ? 1 : 0),
           revenue: acc.revenue + (client.amount_paid || 0),
         }),
-        { total: 0, paid: 0, pending: 0, overdue: 0, revenue: 0 }
+        { total: 0, paid: 0, pending: 0, overdue: 0, suspended: 0, revenue: 0 }
       );
 
       const updatedStats = {
@@ -207,7 +208,9 @@ const Dashboard = () => {
           filteredClients = clients;
           break;
         case "overdue":
-          filteredClients = clients.filter(client => client.status === "Suspended");
+          filteredClients = clients.filter(client => 
+            client.status === "Overdue" || client.status === "Suspended"
+          );
           break;
         case "active":
           filteredClients = clients.filter(client => 
@@ -248,7 +251,7 @@ const Dashboard = () => {
     },
     {
       title: "Overdue Payments",
-      value: clientStats.overdue.toString(),
+      value: (clientStats.overdue + clientStats.suspended).toString(),
       emoji: "⚠️",
       trend: "Requires attention",
       color: "#dc2626",
