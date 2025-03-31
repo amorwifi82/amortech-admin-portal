@@ -3,14 +3,13 @@ export const APP_VERSION = '1.0.2';
 export const CHANGELOG = [
   {
     version: '1.0.2',
-    date: '2024-03-21',
+    date: '2024-03-22',
     changes: [
-      'Added version tracking in settings',
-      'Improved debt management with filtered view (only showing clients with debt)',
-      'Enhanced payment tracking system',
-      'Added WhatsApp and SMS templates for payment reminders',
-      'Improved UI/UX for debt recording and payment collection',
-      'Fixed bug with debt accumulation for existing clients'
+      'Fixed settings page initialization and persistence',
+      'Improved error handling for settings management',
+      'Enhanced database schema for settings table',
+      'Added better type safety for settings data',
+      'Fixed version column synchronization issues'
     ]
   },
   {

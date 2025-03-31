@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
-import { Card } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,8 +29,8 @@ import { APP_VERSION } from '@/config/settings';
 interface Settings {
   id: string;
   company_name: string;
-  company_logo: string;
-  company_email: string;
+  company_logo: string | null;
+  company_email: string | null;
   currency: string;
   notification_enabled: boolean;
   payment_reminder_days: number;
@@ -71,6 +71,17 @@ const DATA_RETENTION_OPTIONS = [
 // Version information
 const CHANGELOG = [
   {
+    version: "1.0.2",
+    date: "2024-03-22",
+    changes: [
+      "Fixed settings page initialization and persistence",
+      "Improved error handling for settings management",
+      "Enhanced database schema for settings table",
+      "Added better type safety for settings data",
+      "Fixed version column synchronization issues"
+    ]
+  },
+  {
     version: "1.0.1",
     date: "2024-03-21",
     changes: [
@@ -100,7 +111,7 @@ const CHANGELOG = [
 ];
 
 const defaultSettings: Settings = {
-  id: '',
+  id: crypto.randomUUID(),
   company_name: 'Amortech',
   company_logo: '',
   company_email: 'info@amortech.co.ke',
@@ -133,59 +144,78 @@ const Settings = () => {
     try {
       setIsLoading(true);
 
-      // First check if we have an authenticated session
+      // Check if we have an authenticated session
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
       if (sessionError) {
         console.error("Session error:", sessionError);
-        throw sessionError;
-      }
-
-      if (!session) {
-        // Redirect to login if no session
-        window.location.href = '/auth/login';
+        toast({
+          title: 'Authentication Error',
+          description: 'Please ensure you are logged in.',
+          variant: 'destructive',
+        });
         return;
       }
 
       // Try to fetch existing settings
-      const { data: existingSettings, error } = await supabase
+      const { data: existingSettings, error: fetchError } = await supabase
         .from('settings')
         .select('*')
         .single();
 
-      if (error) {
-        console.error("Fetch error:", error);
-        if (error.code === "PGRST116") {
+      if (fetchError) {
+        console.error("Fetch error:", fetchError);
+        if (fetchError.code === "PGRST116") {
           // No settings found, create default settings
           const { data: newSettings, error: insertError } = await supabase
             .from('settings')
             .insert([{
-              ...defaultSettings,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
+              company_name: 'Amortech',
+              company_logo: '',
+              company_email: 'info@amortech.co.ke',
+              currency: 'KES',
+              notification_enabled: true,
+              payment_reminder_days: 5,
+              theme: 'light',
+              language: 'en',
+              timezone: 'Africa/Nairobi',
+              data_retention_days: 365,
+              version: APP_VERSION
             }])
             .select()
             .single();
 
           if (insertError) {
             console.error("Insert error:", insertError);
-            throw insertError;
+            toast({
+              title: 'Settings Creation Failed',
+              description: insertError.message || 'Failed to create settings. Please try again.',
+              variant: 'destructive',
+            });
+            return;
           }
 
           if (newSettings) {
-            setSettings(newSettings);
+            setSettings(newSettings as Settings);
+            toast({
+              title: 'Success',
+              description: 'Default settings created successfully.',
+            });
           }
         } else {
-          throw error;
+          toast({
+            title: 'Error',
+            description: fetchError.message || 'Failed to load settings. Please try again.',
+            variant: 'destructive',
+          });
         }
       } else if (existingSettings) {
-        setSettings(existingSettings);
+        setSettings(existingSettings as Settings);
       }
     } catch (error: any) {
       console.error('Error fetching settings:', error);
       toast({
         title: 'Error',
-        description: 'Failed to load settings. Please check your connection and try again.',
+        description: error.message || 'Failed to load settings. Please check your connection and try again.',
         variant: 'destructive',
       });
     } finally {
@@ -502,185 +532,331 @@ const Settings = () => {
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <SettingsIcon className="h-8 w-8 text-primary" />
             Settings
-            <span className="text-xs text-muted-foreground ml-2">v{APP_VERSION}</span>
+            <Badge variant="outline" className="ml-2">v{APP_VERSION}</Badge>
           </h1>
           <p className="text-muted-foreground mt-1">Configure your application settings</p>
         </div>
       </div>
 
-      <div className="grid gap-6 p-6 bg-card rounded-lg border">
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold">Company Information</h2>
-          
-          <div className="grid gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="company_name">Company Name</Label>
-              <Input
-                id="company_name"
-                value={settings.company_name}
-                onChange={(e) => setSettings(prev => ({ ...prev, company_name: e.target.value }))}
-              />
-            </div>
+      <Tabs defaultValue="company" className="w-full">
+        <TabsList className="grid grid-cols-2 lg:grid-cols-6 w-full">
+          <TabsTrigger value="company">Company</TabsTrigger>
+          <TabsTrigger value="notifications">Notifications</TabsTrigger>
+          <TabsTrigger value="preferences">Preferences</TabsTrigger>
+          <TabsTrigger value="backup">Backup & Restore</TabsTrigger>
+          <TabsTrigger value="system">System</TabsTrigger>
+          <TabsTrigger value="changelog">Changelog</TabsTrigger>
+        </TabsList>
 
-            <div className="space-y-2">
-              <Label htmlFor="company_email">Company Email</Label>
-              <Input
-                id="company_email"
-                type="email"
-                value={settings.company_email}
-                onChange={(e) => setSettings(prev => ({ ...prev, company_email: e.target.value }))}
-              />
-            </div>
+        <TabsContent value="company" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Company Information</CardTitle>
+              <CardDescription>Manage your company details and branding</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="company_name">Company Name</Label>
+                  <Input
+                    id="company_name"
+                    value={settings.company_name}
+                    onChange={(e) => setSettings(prev => ({ ...prev, company_name: e.target.value }))}
+                  />
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="company_logo">Company Logo URL</Label>
-            <Input
-                id="company_logo"
-                value={settings.company_logo}
-                onChange={(e) => setSettings(prev => ({ ...prev, company_logo: e.target.value }))}
-              />
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="company_email">Company Email</Label>
+                  <Input
+                    id="company_email"
+                    type="email"
+                    value={settings.company_email}
+                    onChange={(e) => setSettings(prev => ({ ...prev, company_email: e.target.value }))}
+                  />
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="currency">Currency</Label>
-              <Select
-                value={settings.currency}
-                onValueChange={(value) => setSettings(prev => ({ ...prev, currency: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select currency" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="KES">KES - Kenyan Shilling</SelectItem>
-                  <SelectItem value="USD">USD - US Dollar</SelectItem>
-                  <SelectItem value="EUR">EUR - Euro</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
+                <div className="space-y-2">
+                  <Label htmlFor="company_logo">Company Logo URL</Label>
+                  <Input
+                    id="company_logo"
+                    value={settings.company_logo}
+                    onChange={(e) => setSettings(prev => ({ ...prev, company_logo: e.target.value }))}
+                  />
+                </div>
 
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold">Notifications</h2>
-          
-          <div className="grid gap-4">
-          <div className="flex items-center justify-between">
-              <Label htmlFor="notifications">Enable Notifications</Label>
-            <Switch
-              id="notifications"
-                checked={settings.notification_enabled}
-                onCheckedChange={(checked) => setSettings(prev => ({ ...prev, notification_enabled: checked }))}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="reminder_days">Payment Reminder Days</Label>
-              <Input
-                id="reminder_days"
-                type="number"
-                value={settings.payment_reminder_days}
-                onChange={(e) => setSettings(prev => ({ ...prev, payment_reminder_days: parseInt(e.target.value) || 0 }))}
-              />
-            </div>
-
-            <Button
-              variant="outline"
-              onClick={handleTestNotification}
-              disabled={isTestingNotification || !settings.notification_enabled}
-            >
-              <Bell className="mr-2 h-4 w-4" />
-              {isTestingNotification ? "Sending..." : "Test Notifications"}
-            </Button>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold">Preferences</h2>
-          
-          <div className="grid gap-4">
-            <div className="space-y-2">
-            <Label htmlFor="theme">Theme</Label>
-              <Select
-                value={settings.theme}
-                onValueChange={(value) => setSettings(prev => ({ ...prev, theme: value as Settings['theme'] }))}
-              >
-                <SelectTrigger>
-                <SelectValue placeholder="Select theme" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="light">Light</SelectItem>
-                <SelectItem value="dark">Dark</SelectItem>
-                <SelectItem value="system">System</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="language">Language</Label>
-              <Select
-                value={settings.language}
-                onValueChange={(value) => setSettings(prev => ({ ...prev, language: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select language" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="en">English</SelectItem>
-                  <SelectItem value="sw">Swahili</SelectItem>
-                </SelectContent>
-              </Select>
-        </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="timezone">Timezone</Label>
-              <Select
-                value={settings.timezone}
-                onValueChange={(value) => setSettings(prev => ({ ...prev, timezone: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select timezone" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Africa/Nairobi">Nairobi</SelectItem>
-                  <SelectItem value="UTC">UTC</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold">System</h2>
-          
-          <div className="grid gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="data_retention">Data Retention (days)</Label>
-              <Input
-                id="data_retention"
-                type="number"
-                value={settings.data_retention_days}
-                onChange={(e) => setSettings(prev => ({ ...prev, data_retention_days: parseInt(e.target.value) || 365 }))}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Version Information</Label>
-              <div className="text-sm text-muted-foreground">
-                <p>Version: {settings.version}</p>
-                <p>Last Updated: {new Date(settings.updated_at).toLocaleString()}</p>
+                <div className="space-y-2">
+                  <Label htmlFor="currency">Currency</Label>
+                  <Select
+                    value={settings.currency}
+                    onValueChange={(value) => setSettings(prev => ({ ...prev, currency: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select currency" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CURRENCIES.map(currency => (
+                        <SelectItem key={currency.code} value={currency.code}>
+                          {currency.code} - {currency.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            </div>
-          </div>
-        </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-        <div className="flex justify-end">
-          <Button
-            onClick={saveSettings}
-            disabled={isSaving}
-          >
-            {isSaving ? 'Saving...' : 'Save Changes'}
-          </Button>
-        </div>
+        <TabsContent value="notifications" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Notification Settings</CardTitle>
+              <CardDescription>Configure how and when notifications are sent</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Enable Notifications</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Receive notifications for payments and reminders
+                  </p>
+                </div>
+                <Switch
+                  checked={settings.notification_enabled}
+                  onCheckedChange={(checked) => setSettings(prev => ({ ...prev, notification_enabled: checked }))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="reminder_days">Payment Reminder Days</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="reminder_days"
+                    type="number"
+                    value={settings.payment_reminder_days}
+                    onChange={(e) => setSettings(prev => ({ ...prev, payment_reminder_days: parseInt(e.target.value) || 0 }))}
+                    className="w-32"
+                  />
+                  <span className="text-sm text-muted-foreground">days before due date</span>
+                </div>
+              </div>
+
+              <Button
+                variant="outline"
+                onClick={handleTestNotification}
+                disabled={isTestingNotification || !settings.notification_enabled}
+              >
+                <Bell className="mr-2 h-4 w-4" />
+                {isTestingNotification ? "Sending..." : "Test Notifications"}
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="preferences" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Preferences</CardTitle>
+              <CardDescription>Customize your application experience</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="theme">Theme</Label>
+                  <Select
+                    value={settings.theme}
+                    onValueChange={(value) => setSettings(prev => ({ ...prev, theme: value as Settings['theme'] }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select theme" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="light">Light</SelectItem>
+                      <SelectItem value="dark">Dark</SelectItem>
+                      <SelectItem value="system">System</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="language">Language</Label>
+                  <Select
+                    value={settings.language}
+                    onValueChange={(value) => setSettings(prev => ({ ...prev, language: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select language" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LANGUAGES.map(lang => (
+                        <SelectItem key={lang.code} value={lang.code}>
+                          {lang.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="timezone">Timezone</Label>
+                  <Select
+                    value={settings.timezone}
+                    onValueChange={(value) => setSettings(prev => ({ ...prev, timezone: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select timezone" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIMEZONES.map(tz => (
+                        <SelectItem key={tz.code} value={tz.code}>
+                          {tz.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="backup" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Backup & Restore</CardTitle>
+              <CardDescription>Manage your data backups and restoration</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4">
+                <div className="flex flex-col gap-2">
+                  <Button variant="outline" onClick={handleBackupData}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Download Backup
+                  </Button>
+                  <p className="text-sm text-muted-foreground">
+                    Download a complete backup of your data
+                  </p>
+                </div>
+
+                <Separator />
+
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="restore">Restore from Backup</Label>
+                  <Input
+                    id="restore"
+                    type="file"
+                    accept=".json"
+                    onChange={handleRestoreBackup}
+                    disabled={isRestoring}
+                    ref={fileInputRef}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    {isRestoring ? "Restoring..." : "Select a backup file to restore"}
+                  </p>
+                </div>
+
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive">
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Clear Database
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete all your data
+                        including clients, payments, and settings.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleClearDatabase}>
+                        Yes, clear everything
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="system" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>System Settings</CardTitle>
+              <CardDescription>Configure system-wide settings</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="data_retention">Data Retention</Label>
+                  <Select
+                    value={settings.data_retention_days.toString()}
+                    onValueChange={(value) => setSettings(prev => ({ ...prev, data_retention_days: parseInt(value) }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select retention period" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DATA_RETENTION_OPTIONS.map(option => (
+                        <SelectItem key={option.days} value={option.days.toString()}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-sm text-muted-foreground">
+                    How long to keep historical data
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="changelog" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Changelog</CardTitle>
+              <CardDescription>View recent updates and changes</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[400px] pr-4">
+                <div className="space-y-6">
+                  {CHANGELOG.map((release, index) => (
+                    <div key={release.version} className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-lg font-semibold">Version {release.version}</h3>
+                        <Badge variant={index === 0 ? "default" : "secondary"}>
+                          {index === 0 ? "Latest" : "Previous"}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{release.date}</p>
+                      <ul className="list-disc list-inside space-y-1">
+                        {release.changes.map((change, i) => (
+                          <li key={i} className="text-sm">{change}</li>
+                        ))}
+                      </ul>
+                      {index < CHANGELOG.length - 1 && <Separator className="my-4" />}
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      <div className="flex justify-end">
+        <Button
+          onClick={saveSettings}
+          disabled={isSaving}
+        >
+          {isSaving ? 'Saving...' : 'Save Changes'}
+        </Button>
       </div>
     </div>
   );
